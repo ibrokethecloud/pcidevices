@@ -2,12 +2,8 @@ package nichelper
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
-
 	ctlnetworkv1beta1 "github.com/harvester/harvester-network-controller/pkg/generated/controllers/network.harvesterhci.io/v1beta1"
+	"github.com/harvester/pcidevices/pkg/util/common"
 	"github.com/jaypipes/ghw"
 	"github.com/jaypipes/ghw/pkg/net"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -18,6 +14,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/json"
+	"os"
+	"path/filepath"
+	"strconv"
 
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 )
@@ -182,13 +181,8 @@ func IsNICSRIOVCapable(deviceAddr string) (bool, error) {
 }
 
 func CurrentVFConfigured(deviceAddr string) (int, error) {
-	contents, err := os.ReadFile(filepath.Join(defaultDevicePath, deviceAddr, defaultConfiguredVFFile))
-	if err != nil {
-		return 0, fmt.Errorf("error reading configure vfs for device %s: %v", deviceAddr, err)
-	}
-
-	numvfs := strings.Trim(string(contents), "\n")
-	return strconv.Atoi(numvfs)
+	devicePath := filepath.Join(defaultDevicePath, deviceAddr)
+	return common.CurrentVFConfigured(devicePath)
 }
 
 func ConfigureVF(deviceAddr string, numvfs int) error {
@@ -307,30 +301,5 @@ func GetDefaultSysPath() string {
 // GetVFList returns a List containing PCI addr for all VF discovered in a given PF
 func GetVFList(pf string) (vfList []string, err error) {
 	pfDir := filepath.Join(defaultDevicePath, pf)
-	_, err = os.Lstat(pfDir)
-	if err != nil {
-		err = fmt.Errorf("Error. Could not get PF directory information for device: %s, Err: %v", pf, err)
-		return
-	}
-
-	vfDirs, err := filepath.Glob(filepath.Join(pfDir, "virtfn*"))
-
-	if err != nil {
-		err = fmt.Errorf("error reading VF directories %v", err)
-		return
-	}
-
-	vfList = make([]string, 0, len(vfDirs))
-	//Read all VF directory and get add VF PCI addr to the vfList
-	for _, dir := range vfDirs {
-		dirInfo, err := os.Lstat(dir)
-		if err == nil && (dirInfo.Mode()&os.ModeSymlink != 0) {
-			linkName, err := filepath.EvalSymlinks(dir)
-			if err == nil {
-				vfLink := filepath.Base(linkName)
-				vfList = append(vfList, vfLink)
-			}
-		}
-	}
-	return
+	return common.GetVFList(pfDir)
 }

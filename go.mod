@@ -21,6 +21,7 @@ require (
 	github.com/urfave/cli/v2 v2.11.1
 	github.com/vishvananda/netlink v1.2.1-beta.2
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74
+	gitlab.com/nvidia/cloud-native/go-nvlib v0.0.0-20230818092907-09424fdc8884
 	google.golang.org/grpc v1.54.0
 	k8s.io/api v0.25.4
 	k8s.io/apimachinery v0.25.4
