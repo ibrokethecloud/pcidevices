@@ -24,7 +24,6 @@ type SRIOVGPUDeviceSpec struct {
 type SRIOVGPUDeviceStatus struct {
 	VFAddresses []string `json:"vfAddresses,omitempty"`
 	VGPUDevices []string `json:"vGPUDevices,omitempty"`
-	Status      string   `json:"status"`
 }
 
 // +genclient
@@ -41,7 +40,7 @@ type VGPUDevice struct {
 }
 
 type VGPUDeviceSpec struct {
-	vGPUTypeName           string `json:"vGPUTypeName,omitempty"`
+	VGPUTypeName           string `json:"vGPUTypeName,omitempty"`
 	DeviceAddress          string `json:"deviceAddress"`
 	Enabled                bool   `json:"enabled"`
 	NodeName               string `json:"nodeName"`
@@ -49,9 +48,10 @@ type VGPUDeviceSpec struct {
 }
 
 type VGPUDeviceStatus struct {
-	vGPUStatus     string            `json:"vGPUStatus,omitempty"`
-	UUID           string            `json:"uuid"`
-	AvailableTypes map[string]string `json:"availableTypes"` // reconciles against mdev_supported_types and populates name: mdevType for types which are possible
+	VGPUStatus             VGPUStatus        `json:"vGPUStatus,omitempty"`
+	UUID                   string            `json:"uuid,omitempty"`
+	ConfiguredVGPUTypeName string            `json:"configureVGPUTypeName,omitempty"`
+	AvailableTypes         map[string]string `json:"availableTypes,omitempty"` // reconciles against mdev_supported_types and populates name: mdevType for types which are possible
 }
 
 type VGPUStatus string
