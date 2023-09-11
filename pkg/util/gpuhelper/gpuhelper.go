@@ -38,7 +38,7 @@ func IdentifySRIOVGPU(options []nvpci.Option, hostname string) ([]*v1beta1.SRIOV
 			continue
 		}
 		devObj := generateSRIOVGPUDevice(v, hostname)
-		enabled, devObjStatus, err := generateGPUStatus(v.Path, hostname)
+		enabled, devObjStatus, err := GenerateGPUStatus(v.Path, hostname)
 		if err != nil {
 			return nil, err
 		}
@@ -52,20 +52,23 @@ func IdentifySRIOVGPU(options []nvpci.Option, hostname string) ([]*v1beta1.SRIOV
 	return sriovGPUDevices, nil
 }
 
-func generateSRIOVGPUDevice(nvidiaGpu *nvpci.NvidiaPCIDevice, hostname string) *v1beta1.SRIOVGPUDevice {
+func generateSRIOVGPUDevice(nvidiaGpu *nvpci.NvidiaPCIDevice, nodeName string) *v1beta1.SRIOVGPUDevice {
 	obj := &v1beta1.SRIOVGPUDevice{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: v1beta1.PCIDeviceNameForHostname(nvidiaGpu.Address, hostname),
+			Name: v1beta1.PCIDeviceNameForHostname(nvidiaGpu.Address, nodeName),
+			Labels: map[string]string{
+				v1beta1.NodeKeyName: nodeName,
+			},
 		},
 		Spec: v1beta1.SRIOVGPUDeviceSpec{
 			Address:  nvidiaGpu.Address,
-			NodeName: hostname,
+			NodeName: nodeName,
 		},
 	}
 	return obj
 }
 
-func generateGPUStatus(devicePath string, hostname string) (bool, *v1beta1.SRIOVGPUDeviceStatus, error) {
+func GenerateGPUStatus(devicePath string, hostname string) (bool, *v1beta1.SRIOVGPUDeviceStatus, error) {
 	var enabled bool
 	var err error
 	count, err := common.CurrentVFConfigured(devicePath)
@@ -115,6 +118,9 @@ func generateVGPUDevice(device *nvpci.NvidiaPCIDevice, nodeName string) (*v1beta
 	vgpu := &v1beta1.VGPUDevice{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: v1beta1.PCIDeviceNameForHostname(device.Address, nodeName),
+			Labels: map[string]string{
+				v1beta1.NodeKeyName: nodeName,
+			},
 		},
 		Spec: v1beta1.VGPUDeviceSpec{
 			DeviceAddress: device.Address,
