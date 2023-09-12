@@ -3,16 +3,18 @@ package gpudevice
 import (
 	"context"
 	"fmt"
+	"os"
+	"reflect"
+
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 	ctl "github.com/harvester/pcidevices/pkg/generated/controllers/devices.harvesterhci.io/v1beta1"
 	"github.com/harvester/pcidevices/pkg/util/executor"
 	"github.com/harvester/pcidevices/pkg/util/gpuhelper"
 	"github.com/sirupsen/logrus"
+	"gitlab.com/nvidia/cloud-native/go-nvlib/pkg/nvpci"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"os"
-	"reflect"
 )
 
 type Handler struct {
@@ -23,24 +25,27 @@ type Handler struct {
 	sriovGPUClient      ctl.SRIOVGPUDeviceClient
 	vGPUClient          ctl.VGPUDeviceClient
 	pciDeviceClaimCache ctl.PCIDeviceClaimCache
-	pciDeviceClient     ctl.PCIDeviceClient
 	executor            executor.Executor
+	options             []nvpci.Option
 }
 
-func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController) *Handler {
+func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaim ctl.PCIDeviceClaimController, options []nvpci.Option) *Handler {
 	return &Handler{
-		ctx:            ctx,
-		sriovGPUCache:  sriovGPUController.Cache(),
-		sriovGPUClient: sriovGPUController,
-		vGPUCache:      vGPUController.Cache(),
-		vGPUClient:     vGPUController,
-		executor:       executor.NewLocalExecutor(os.Environ()),
-		nodeName:       os.Getenv(v1beta1.NodeEnvVarName),
+		ctx:                 ctx,
+		sriovGPUCache:       sriovGPUController.Cache(),
+		sriovGPUClient:      sriovGPUController,
+		vGPUCache:           vGPUController.Cache(),
+		vGPUClient:          vGPUController,
+		pciDeviceClaimCache: pciDeviceClaim.Cache(),
+		executor:            executor.NewLocalExecutor(os.Environ()),
+		nodeName:            os.Getenv(v1beta1.NodeEnvVarName),
+		options:             options,
 	}
 }
 
-func Register(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController) error {
-	h := NewHandler(ctx, sriovGPUController, vGPUController)
+// Register setups up handlers for SRIOVGPUDevices and VGPUDevices
+func Register(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaimController ctl.PCIDeviceClaimController) error {
+	h := NewHandler(ctx, sriovGPUController, vGPUController, pciDeviceClaimController, nil)
 	sriovGPUController.OnChange(ctx, "on-gpu-change", h.OnGPUChange)
 	vGPUController.OnChange(ctx, "on-vgpu-change", h.OnVGPUChange)
 	return nil
@@ -50,14 +55,19 @@ func (h *Handler) OnGPUChange(_ string, gpu *v1beta1.SRIOVGPUDevice) (*v1beta1.S
 	return nil, nil
 }
 
+// SetupSRIVGPUDevices is called by the node controller to reconcile objects on startup and predefined intervals
 func (h *Handler) SetupSRIOVGPUDevices() error {
-	sriovDevices, err := gpuhelper.IdentifySRIOVGPU(nil, h.nodeName)
+	sriovGPUDevices, err := gpuhelper.IdentifySRIOVGPU(h.options, h.nodeName)
 	if err != nil {
 		return err
 	}
+	return h.reconcileSRIOVGPUSetup(sriovGPUDevices)
+}
 
+// reconcileSRIOVGPUSetup runs the core logic to reconcile the k8s view of node with actual state on the node
+func (h *Handler) reconcileSRIOVGPUSetup(sriovGPUDevices []*v1beta1.SRIOVGPUDevice) error {
 	// create missing SRIOVGPUdevices, skipping GPU's which are already passed through as PCIDevices
-	for _, v := range sriovDevices {
+	for _, v := range sriovGPUDevices {
 		// if pcideviceclaim already exists for SRIOVGPU, then likely this GPU is already passed through
 		// skip creation of SriovGPUDevice object until PCIDeviceClaim exists
 		existingClaim, err := h.pciDeviceClaimCache.Get(v.Name)
@@ -66,7 +76,7 @@ func (h *Handler) SetupSRIOVGPUDevices() error {
 		}
 		if existingClaim != nil {
 			// pciDeviceClaim exists skipping
-			logrus.Debugf("skipping creation of vGPUDevice %s as PCIDeviceClaim exists")
+			logrus.Debugf("skipping creation of vGPUDevice %s as PCIDeviceClaim exists", existingClaim.Name)
 			continue
 		}
 
@@ -84,7 +94,7 @@ func (h *Handler) SetupSRIOVGPUDevices() error {
 	}
 
 	for _, v := range existingGPUs {
-		if !containsGPUDevices(v, sriovDevices) {
+		if !containsGPUDevices(v, sriovGPUDevices) {
 			if err := h.sriovGPUClient.Delete(v.Name, &metav1.DeleteOptions{}); err != nil {
 				return fmt.Errorf("error deleting non existant GPU device %s: %v", v.Name, err)
 			}
@@ -94,6 +104,7 @@ func (h *Handler) SetupSRIOVGPUDevices() error {
 	return nil
 }
 
+// createOrUpdateSRIOVGPUDevice will check and create GPU if one doesnt exist. If one is found it will perform an update if needed
 func (h *Handler) createOrUpdateSRIOVGPUDevice(gpu *v1beta1.SRIOVGPUDevice) error {
 	existingObj, err := h.sriovGPUCache.Get(gpu.Name)
 	if err != nil {
@@ -111,6 +122,7 @@ func (h *Handler) createOrUpdateSRIOVGPUDevice(gpu *v1beta1.SRIOVGPUDevice) erro
 	return nil
 }
 
+// containsGPUDevices checks if gpu exists in list of devices
 func containsGPUDevices(gpu *v1beta1.SRIOVGPUDevice, gpuList []*v1beta1.SRIOVGPUDevice) bool {
 	for _, v := range gpuList {
 		if v.Name == gpu.Name {
