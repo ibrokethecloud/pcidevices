@@ -4,17 +4,23 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 
-	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
-	ctl "github.com/harvester/pcidevices/pkg/generated/controllers/devices.harvesterhci.io/v1beta1"
-	"github.com/harvester/pcidevices/pkg/util/executor"
-	"github.com/harvester/pcidevices/pkg/util/gpuhelper"
 	"github.com/sirupsen/logrus"
 	"gitlab.com/nvidia/cloud-native/go-nvlib/pkg/nvpci"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
+	ctl "github.com/harvester/pcidevices/pkg/generated/controllers/devices.harvesterhci.io/v1beta1"
+	"github.com/harvester/pcidevices/pkg/util/executor"
+	"github.com/harvester/pcidevices/pkg/util/gpuhelper"
+)
+
+const (
+	sriovManageCommand = "/host//usr/lib/nvidia/sriov-manage"
 )
 
 type Handler struct {
@@ -51,11 +57,30 @@ func Register(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceControll
 	return nil
 }
 
+// OnGPUChange performs enable/disable operations if needed
 func (h *Handler) OnGPUChange(_ string, gpu *v1beta1.SRIOVGPUDevice) (*v1beta1.SRIOVGPUDevice, error) {
+	if gpu == nil || gpu.DeletionTimestamp != nil || gpu.Spec.NodeName != h.nodeName {
+		return gpu, nil
+	}
+
+	enabled, gpuStatus, err := gpuhelper.GenerateGPUStatus(filepath.Join(v1beta1.SysDevRoot, gpu.Spec.Address), gpu.Spec.NodeName)
+	if err != nil {
+		return gpu, fmt.Errorf("error generating status for SRIOVGPUDevice %s: %v", gpu.Name, err)
+	}
+
+	// perform enable/disable operation as needed
+	if gpu.Spec.Enabled != enabled {
+		return gpu, h.manageGPU(gpu.Spec.Address, gpu.Spec.Enabled)
+	}
+
+	if !reflect.DeepEqual(gpu.Status, gpuStatus) {
+		gpu.Status = *gpuStatus
+		return h.sriovGPUClient.UpdateStatus(gpu)
+	}
 	return nil, nil
 }
 
-// SetupSRIVGPUDevices is called by the node controller to reconcile objects on startup and predefined intervals
+// SetupSRIOVGPUDevices is called by the node controller to reconcile objects on startup and predefined intervals
 func (h *Handler) SetupSRIOVGPUDevices() error {
 	sriovGPUDevices, err := gpuhelper.IdentifySRIOVGPU(h.options, h.nodeName)
 	if err != nil {
@@ -96,7 +121,7 @@ func (h *Handler) reconcileSRIOVGPUSetup(sriovGPUDevices []*v1beta1.SRIOVGPUDevi
 	for _, v := range existingGPUs {
 		if !containsGPUDevices(v, sriovGPUDevices) {
 			if err := h.sriovGPUClient.Delete(v.Name, &metav1.DeleteOptions{}); err != nil {
-				return fmt.Errorf("error deleting non existant GPU device %s: %v", v.Name, err)
+				return fmt.Errorf("error deleting non existent GPU device %s: %v", v.Name, err)
 			}
 		}
 	}
@@ -130,4 +155,21 @@ func containsGPUDevices(gpu *v1beta1.SRIOVGPUDevice, gpuList []*v1beta1.SRIOVGPU
 		}
 	}
 	return false
+}
+
+// manageGPU performs sriovmanage on the appropriate GPU
+func (h *Handler) manageGPU(address string, enable bool) error {
+	var args []string
+	if enable {
+		args = append(args, "-e", address)
+	} else {
+		args = append(args, "-d", address)
+	}
+	output, err := h.executor.Run(sriovManageCommand, args)
+	if err != nil {
+		logrus.Error(string(output))
+		return fmt.Errorf("error performing sriovmanage operation: %v", err)
+	}
+	logrus.Debug(output)
+	return nil
 }

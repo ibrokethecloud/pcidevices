@@ -8,10 +8,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 	"github.com/harvester/pcidevices/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/pcidevices/pkg/util/fakeclients"
-	"github.com/stretchr/testify/require"
 )
 
 var (

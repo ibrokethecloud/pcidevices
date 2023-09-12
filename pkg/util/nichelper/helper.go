@@ -2,8 +2,11 @@ package nichelper
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+
 	ctlnetworkv1beta1 "github.com/harvester/harvester-network-controller/pkg/generated/controllers/network.harvesterhci.io/v1beta1"
-	"github.com/harvester/pcidevices/pkg/util/common"
 	"github.com/jaypipes/ghw"
 	"github.com/jaypipes/ghw/pkg/net"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -14,9 +17,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/json"
-	"os"
-	"path/filepath"
-	"strconv"
+
+	"github.com/harvester/pcidevices/pkg/util/common"
 
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 )

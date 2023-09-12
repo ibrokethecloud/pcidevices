@@ -41,7 +41,7 @@ type VGPUDevice struct {
 
 type VGPUDeviceSpec struct {
 	VGPUTypeName           string `json:"vGPUTypeName,omitempty"`
-	DeviceAddress          string `json:"deviceAddress"`
+	Address                string `json:"address"`
 	Enabled                bool   `json:"enabled"`
 	NodeName               string `json:"nodeName"`
 	ParentGPUDeviceAddress string `json:"parentGPUDeviceAddress"`

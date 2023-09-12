@@ -8,11 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
-	"github.com/harvester/pcidevices/pkg/util/common"
 	"github.com/sirupsen/logrus"
 	"gitlab.com/nvidia/cloud-native/go-nvlib/pkg/nvpci"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
+	"github.com/harvester/pcidevices/pkg/util/common"
 )
 
 const (
@@ -123,8 +124,8 @@ func generateVGPUDevice(device *nvpci.NvidiaPCIDevice, nodeName string) (*v1beta
 			},
 		},
 		Spec: v1beta1.VGPUDeviceSpec{
-			DeviceAddress: device.Address,
-			NodeName:      nodeName,
+			Address:  device.Address,
+			NodeName: nodeName,
 		},
 	}
 
@@ -133,7 +134,7 @@ func generateVGPUDevice(device *nvpci.NvidiaPCIDevice, nodeName string) (*v1beta
 		return nil, err
 	}
 	vgpu.Spec.ParentGPUDeviceAddress = physFn
-	status, err := fetchVGPUStatus(v1beta1.MdevRoot, v1beta1.SysDevRoot, v1beta1.MdevBusClassRoot, device.Address)
+	status, err := FetchVGPUStatus(v1beta1.MdevRoot, v1beta1.SysDevRoot, v1beta1.MdevBusClassRoot, device.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -192,13 +193,13 @@ func fetchAvailableTypes(managedBusPath string, deviceAddress string) (map[strin
 				return nil, err
 			}
 			dirs := strings.Split(dir, "/")
-			availableTypes[dirs[len(dirs)-1]] = string(nameContent)
+			availableTypes[dirs[len(dirs)-1]] = strings.Trim(string(nameContent), "\n")
 		}
 	}
 	return availableTypes, nil
 }
 
-func fetchVGPUStatus(mdevRoot string, pciDeviceRoot string, managedBusPath string, deviceAddress string) (*v1beta1.VGPUDeviceStatus, error) {
+func FetchVGPUStatus(mdevRoot string, pciDeviceRoot string, managedBusPath string, deviceAddress string) (*v1beta1.VGPUDeviceStatus, error) {
 	var uuid, deviceType string
 	err := filepath.WalkDir(mdevRoot, func(path string, d fs.DirEntry, err error) error {
 		logrus.Debugf("checking path %s", path)

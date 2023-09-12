@@ -1,15 +1,39 @@
 package gpudevice
 
 import (
+	"fmt"
 	"reflect"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 	"github.com/harvester/pcidevices/pkg/util/gpuhelper"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 )
 
 func (h *Handler) OnVGPUChange(_ string, gpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, error) {
+	if gpu == nil || gpu.DeletionTimestamp != nil || gpu.Spec.NodeName != h.nodeName {
+		return gpu, nil
+	}
+
+	gpuStatus, err := gpuhelper.FetchVGPUStatus(v1beta1.MdevRoot, v1beta1.SysDevRoot, v1beta1.MdevBusClassRoot, gpu.Spec.Address)
+	if err != nil {
+		return gpu, fmt.Errorf("error generating vgpu %s status: %v", gpu.Name, err)
+	}
+
+	// if vGPU was configured directly on OS, reconcile state with CRD
+	if !gpu.Spec.Enabled && gpuStatus.ConfiguredVGPUTypeName != "" {
+		gpu.Spec.Enabled = true
+		gpu.Spec.VGPUTypeName = gpuStatus.ConfiguredVGPUTypeName
+		return h.vGPUClient.Update(gpu)
+	}
+
+	// perform enable disable operation //
+	if !reflect.DeepEqual(gpuStatus, gpu.Status) {
+		gpu.Status = *gpuStatus
+		return h.vGPUClient.UpdateStatus(gpu)
+	}
+
 	return nil, nil
 }
 

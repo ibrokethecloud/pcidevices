@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
-	"github.com/harvester/pcidevices/pkg/generated/clientset/versioned/fake"
-	"github.com/harvester/pcidevices/pkg/util/fakeclients"
 	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
+	"github.com/harvester/pcidevices/pkg/generated/clientset/versioned/fake"
+	"github.com/harvester/pcidevices/pkg/util/fakeclients"
 )
 
 var (
@@ -23,7 +24,7 @@ var (
 		},
 		Spec: v1beta1.VGPUDeviceSpec{
 			NodeName:               nodeName,
-			DeviceAddress:          "0000:09:00.4",
+			Address:                "0000:09:00.4",
 			ParentGPUDeviceAddress: "0000:09:00.0",
 			Enabled:                false,
 		},
@@ -38,7 +39,7 @@ var (
 		},
 		Spec: v1beta1.VGPUDeviceSpec{
 			NodeName:               nodeName,
-			DeviceAddress:          "0000:10:00.4",
+			Address:                "0000:10:00.4",
 			ParentGPUDeviceAddress: "0000:10:00.0",
 			Enabled:                false,
 		},
@@ -53,7 +54,7 @@ var (
 		},
 		Spec: v1beta1.VGPUDeviceSpec{
 			NodeName:               nodeName,
-			DeviceAddress:          "0000:10:00.4",
+			Address:                "0000:10:00.4",
 			ParentGPUDeviceAddress: "0000:10:00.0",
 			Enabled:                true,
 			VGPUTypeName:           "NVIDIA A2-4C",
@@ -69,7 +70,7 @@ var (
 		},
 		Spec: v1beta1.VGPUDeviceSpec{
 			NodeName:               nodeName,
-			DeviceAddress:          "0000:11:00.4",
+			Address:                "0000:11:00.4",
 			ParentGPUDeviceAddress: "0000:11:00.0",
 			Enabled:                false,
 		},

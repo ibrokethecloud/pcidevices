@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/harvester/pcidevices/pkg/controller/gpudevice"
+
 	ctlnetworkv1beta1 "github.com/harvester/harvester-network-controller/pkg/generated/controllers/network.harvesterhci.io/v1beta1"
 	"github.com/jaypipes/ghw"
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
@@ -24,35 +26,44 @@ const (
 )
 
 type handler struct {
-	ctx                     context.Context
-	sriovCache              ctl.SRIOVNetworkDeviceCache
-	sriovClient             ctl.SRIOVNetworkDeviceClient
-	pciDeviceClient         ctl.PCIDeviceClient
-	pciDeviceCache          ctl.PCIDeviceCache
-	nodeName                string
-	vlanConfigCache         ctlnetworkv1beta1.VlanConfigCache
-	coreNodeCache           ctlcorev1.NodeCache
-	nodeCtl                 ctl.NodeController
-	sriovNetworkDeviceCache ctl.SRIOVNetworkDeviceCache
+	ctx                      context.Context
+	sriovCache               ctl.SRIOVNetworkDeviceCache
+	sriovClient              ctl.SRIOVNetworkDeviceClient
+	pciDeviceClient          ctl.PCIDeviceClient
+	pciDeviceCache           ctl.PCIDeviceCache
+	nodeName                 string
+	vlanConfigCache          ctlnetworkv1beta1.VlanConfigCache
+	coreNodeCache            ctlcorev1.NodeCache
+	nodeCtl                  ctl.NodeController
+	sriovNetworkDeviceCache  ctl.SRIOVNetworkDeviceCache
+	vGPUController           ctl.VGPUDeviceController
+	pciDeviceClaimController ctl.PCIDeviceClaimController
+	sriovGPUController       ctl.SRIOVGPUDeviceController
 }
 
 const (
 	reconcilePCIDevices = "reconcile-pcidevices"
 )
 
-func Register(ctx context.Context, sriovCtl ctl.SRIOVNetworkDeviceController, pciDeviceCtl ctl.PCIDeviceController, nodeCtl ctl.NodeController, coreNodeCache ctlcorev1.NodeCache, vlanConfigCache ctlnetworkv1beta1.VlanConfigCache, sriovNetworkDeviceCache ctl.SRIOVNetworkDeviceCache) error {
+func Register(ctx context.Context, sriovCtl ctl.SRIOVNetworkDeviceController, pciDeviceCtl ctl.PCIDeviceController,
+	nodeCtl ctl.NodeController, coreNodeCache ctlcorev1.NodeCache, vlanConfigCache ctlnetworkv1beta1.VlanConfigCache,
+	sriovNetworkDeviceCache ctl.SRIOVNetworkDeviceCache, pciDeviceClaimController ctl.PCIDeviceClaimController, vGPUController ctl.VGPUDeviceController,
+	sriovGPUController ctl.SRIOVGPUDeviceController) error {
 	nodeName := os.Getenv(v1beta1.NodeEnvVarName)
 	h := &handler{
-		ctx:                     ctx,
-		sriovCache:              sriovCtl.Cache(),
-		sriovClient:             sriovCtl,
-		pciDeviceClient:         pciDeviceCtl,
-		pciDeviceCache:          pciDeviceCtl.Cache(),
-		nodeName:                nodeName,
-		coreNodeCache:           coreNodeCache,
-		vlanConfigCache:         vlanConfigCache,
-		nodeCtl:                 nodeCtl,
-		sriovNetworkDeviceCache: sriovNetworkDeviceCache,
+		ctx:                      ctx,
+		sriovCache:               sriovCtl.Cache(),
+		sriovClient:              sriovCtl,
+		pciDeviceClient:          pciDeviceCtl,
+		pciDeviceCache:           pciDeviceCtl.Cache(),
+		nodeName:                 nodeName,
+		coreNodeCache:            coreNodeCache,
+		vlanConfigCache:          vlanConfigCache,
+		nodeCtl:                  nodeCtl,
+		sriovNetworkDeviceCache:  sriovNetworkDeviceCache,
+		vGPUController:           vGPUController,
+		pciDeviceClaimController: pciDeviceClaimController,
+		sriovGPUController:       sriovGPUController,
 	}
 
 	nodeCtl.OnChange(ctx, reconcilePCIDevices, h.reconcileNodeDevices)
@@ -89,7 +100,17 @@ func (h *handler) reconcileNodeDevices(name string, node *v1beta1.Node) (*v1beta
 	if err != nil {
 		return nil, fmt.Errorf("error setting up sriov devices for node %s: %v", h.nodeName, err)
 	}
-	//
+	gpuhelper := gpudevice.NewHandler(h.ctx, h.sriovGPUController, h.vGPUController, h.pciDeviceClaimController, nil)
+	err = gpuhelper.SetupSRIOVGPUDevices()
+	if err != nil {
+		return nil, fmt.Errorf("error setting up SRIOV GPU devices for node %s: %v", h.nodeName, err)
+	}
+
+	err = gpuhelper.SetupVGPUDevices()
+	if err != nil {
+		return nil, fmt.Errorf("error setting VGPU devices for node %s: %v", h.nodeName, err)
+	}
+
 	h.nodeCtl.EnqueueAfter(name, defaultRequeuePeriod)
 	return node, err
 }

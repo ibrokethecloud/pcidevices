@@ -13,7 +13,7 @@ const (
 	defaultConfiguredVFFile = "sriov_numvfs"
 )
 
-// IsDeviceSRIOVCapable checks for existance of `sriov_totalvfs` file in the pcidevice tree
+// IsDeviceSRIOVCapable checks for existence of `sriov_totalvfs` file in the pcidevice tree
 func IsDeviceSRIOVCapable(devicePath string) (bool, error) {
 	_, err := os.Stat(filepath.Join(devicePath, defaultTotalVFFile))
 	if err != nil {
@@ -30,7 +30,7 @@ func IsDeviceSRIOVCapable(devicePath string) (bool, error) {
 func CurrentVFConfigured(devicePath string) (int, error) {
 	contents, err := os.ReadFile(filepath.Join(devicePath, defaultConfiguredVFFile))
 	if err != nil {
-		return 0, fmt.Errorf("error reading configure vfs for device %s: %v", devicePath, err)
+		return 0, fmt.Errorf("error reading %s for device %s: %v", defaultConfiguredVFFile, devicePath, err)
 	}
 
 	numvfs := strings.Trim(string(contents), "\n")
@@ -43,7 +43,7 @@ func CurrentVFConfigured(devicePath string) (int, error) {
 func GetVFList(pfDir string) (vfList []string, err error) {
 	_, err = os.Lstat(pfDir)
 	if err != nil {
-		err = fmt.Errorf("Error. Could not get PF directory information for device: %s, Err: %v", pfDir, err)
+		err = fmt.Errorf("error: could not get PF directory information for device: %s, Err: %v", pfDir, err)
 		return
 	}
 

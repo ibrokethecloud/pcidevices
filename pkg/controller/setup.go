@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/harvester/pcidevices/pkg/controller/gpudevice"
+
 	ctlnetwork "github.com/harvester/harvester-network-controller/pkg/generated/controllers/network.harvesterhci.io"
 	"github.com/rancher/lasso/pkg/cache"
 	"github.com/rancher/lasso/pkg/client"
@@ -80,24 +82,30 @@ func Setup(ctx context.Context, cfg *rest.Config, _ *runtime.Scheme) error {
 	coreNodeCtl := coreFactory.Core().V1().Node()
 	vlanCtl := networkFactory.Network().V1beta1().VlanConfig()
 	sriovNetworkDeviceCache := sriovCtl.Cache()
+	sriovGPUCtl := pciFactory.Devices().V1beta1().SRIOVGPUDevice()
+	vGPUCtl := pciFactory.Devices().V1beta1().VGPUDevice()
 	RegisterIndexers(sriovNetworkDeviceCache)
 
 	if err := pcideviceclaim.Register(ctx, pdcCtl, pdCtl); err != nil {
 		return fmt.Errorf("error registering pcidevicclaim controllers :%v", err)
 	}
 
-	if err := nodes.Register(ctx, sriovCtl, pdCtl, nodeCtl, coreNodeCtl.Cache(), vlanCtl.Cache(), sriovNetworkDeviceCache); err != nil {
+	if err := nodes.Register(ctx, sriovCtl, pdCtl, nodeCtl, coreNodeCtl.Cache(), vlanCtl.Cache(),
+		sriovNetworkDeviceCache, pdcCtl, vGPUCtl, sriovGPUCtl); err != nil {
 		return fmt.Errorf("error registering node controller: %v", err)
 	}
 
 	if err := sriovdevice.Register(ctx, sriovCtl, coreNodeCtl.Cache(), vlanCtl.Cache()); err != nil {
-		return fmt.Errorf("error registering sriovdevice controller")
+		return fmt.Errorf("error registering sriovdevice controller: %v", err)
 	}
 
 	if err := nodecleanup.Register(ctx, pdcCtl, pdCtl, coreNodeCtl); err != nil {
-		return fmt.Errorf("error registering nodecleanup controller")
+		return fmt.Errorf("error registering nodecleanup controller: %v", err)
 	}
 
+	if err := gpudevice.Register(ctx, sriovGPUCtl, vGPUCtl, pdcCtl); err != nil {
+		return fmt.Errorf("error registering gpudevice controller :%v", err)
+	}
 	if err := start.All(ctx, 2, coreFactory, networkFactory, pciFactory); err != nil {
 		return fmt.Errorf("error starting controllers :%v", err)
 	}

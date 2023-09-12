@@ -1,10 +1,11 @@
 package gpuhelper
 
 import (
-	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 
 	"github.com/stretchr/testify/require"
 	"gitlab.com/nvidia/cloud-native/go-nvlib/pkg/nvpci"
@@ -40,7 +41,7 @@ func Test_fetchVGPUStatus(t *testing.T) {
 		pciDeviceRoot = filepath.Join(mockPath, v1beta1.SysDevRoot)
 	}
 	managedBusPath := filepath.Join("./testdata", v1beta1.MdevBusClassRoot)
-	status, err := fetchVGPUStatus(mdevRoot, pciDeviceRoot, managedBusPath, "0000:08:01.7")
+	status, err := FetchVGPUStatus(mdevRoot, pciDeviceRoot, managedBusPath, "0000:08:01.7")
 	assert.NoError(err, "expected no error while generating vGPU status")
 	assert.NotEmpty(status.AvailableTypes, "expected AvailableTypes to not be empty")
 }
