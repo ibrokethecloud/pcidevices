@@ -57,10 +57,11 @@ type VGPUDeviceStatus struct {
 type VGPUStatus string
 
 const (
-	HarvesterVGPUType            = "vgpu.harvesterhci.io/type"
-	VGPUEnabled       VGPUStatus = "vGPUConfigured"
-	VGPUDisabled      VGPUStatus = ""
-	SysDevRoot                   = "/sys/bus/pci/devices/"
-	MdevRoot                     = "/sys/bus/mdev/devices/"
-	MdevBusClassRoot             = "/sys/class/mdev_bus/"
+	HarvesterVGPUType              = "vgpu.harvesterhci.io/type"
+	VGPUEnabled         VGPUStatus = "vGPUConfigured"
+	VGPUDisabled        VGPUStatus = ""
+	SysDevRoot                     = "/sys/bus/pci/devices/"
+	MdevRoot                       = "/sys/bus/mdev/devices/"
+	MdevBusClassRoot               = "/sys/class/mdev_bus/"
+	MdevSupportTypesDir            = "mdev_supported_types"
 )

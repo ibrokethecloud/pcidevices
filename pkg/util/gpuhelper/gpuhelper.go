@@ -138,6 +138,9 @@ func generateVGPUDevice(device *nvpci.NvidiaPCIDevice, nodeName string) (*v1beta
 	if err != nil {
 		return nil, err
 	}
+	if status.ConfiguredVGPUTypeName != "" {
+		vgpu.Spec.Enabled = true
+	}
 	vgpu.Status = *status
 	return vgpu, nil
 }
@@ -193,7 +196,7 @@ func fetchAvailableTypes(managedBusPath string, deviceAddress string) (map[strin
 				return nil, err
 			}
 			dirs := strings.Split(dir, "/")
-			availableTypes[dirs[len(dirs)-1]] = strings.Trim(string(nameContent), "\n")
+			availableTypes[strings.Trim(string(nameContent), "\n")] = dirs[len(dirs)-1]
 		}
 	}
 	return availableTypes, nil
