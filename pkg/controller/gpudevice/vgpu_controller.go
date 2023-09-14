@@ -6,14 +6,21 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
+	"github.com/harvester/pcidevices/pkg/deviceplugins"
 	"github.com/harvester/pcidevices/pkg/util/gpuhelper"
+)
+
+var (
+	pluginLock sync.Mutex
 )
 
 func (h *Handler) OnVGPUChange(_ string, vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, error) {
@@ -121,13 +128,29 @@ func (h *Handler) enableVGPU(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, err
 // disableVGPU performs the op to disable VGPU
 func (h *Handler) disableVGPU(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, error) {
 	removeFile := filepath.Join(v1beta1.MdevBusClassRoot, vgpu.Spec.Address, vgpu.Status.UUID, "remove")
+	var notFound bool
+	// possible that CRD update fails but file has been removed
+	// this can lead to issue during reconcile.
+	// in such a case we just ensure plugin is updated and CRD status reflects disabled state
 	if _, err := os.Stat(removeFile); err != nil {
-		return vgpu, fmt.Errorf("error looking up remove file for vgpu %s: %v", vgpu.Name, err)
+		if os.IsNotExist(err) {
+			notFound = true
+		} else {
+			return vgpu, fmt.Errorf("error looking up remove file for vgpu %s: %v", vgpu.Name, err)
+		}
 	}
 
-	if err := os.WriteFile(removeFile, []byte("1"), fs.FileMode(os.O_WRONLY)); err != nil {
-		return vgpu, fmt.Errorf("error writing to remove file for vgpu %s: %v", vgpu.Name, err)
+	if !notFound {
+		if err := os.WriteFile(removeFile, []byte("1"), fs.FileMode(os.O_WRONLY)); err != nil {
+			return vgpu, fmt.Errorf("error writing to remove file for vgpu %s: %v", vgpu.Name, err)
+		}
 	}
+
+	// disableDevicePlugin is run here as we need UUID to remove the device
+	if err := h.disableDevicePlugin(vgpu); err != nil {
+		return vgpu, fmt.Errorf("error cleaning up device plugin for device %s: %v", vgpu.Name, err)
+	}
+
 	vgpu.Status.VGPUStatus = v1beta1.VGPUDisabled
 	vgpu.Status.UUID = ""
 	vgpu.Status.ConfiguredVGPUTypeName = ""
@@ -135,5 +158,80 @@ func (h *Handler) disableVGPU(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, er
 }
 
 func (h *Handler) patchKubevirtCR() error {
+	return nil
+}
+
+func (h *Handler) disableDevicePlugin(vgpu *v1beta1.VGPUDevice) error {
+	pluginLock.Lock()
+	defer pluginLock.Unlock()
+	pluginName := gpuhelper.GenerateDeviceName(vgpu.Status.ConfiguredVGPUTypeName)
+	plugin, ok := h.vGPUDevicePlugins[pluginName]
+	if !ok {
+		logrus.Debugf("no device plugin found for vgpu %s of type %s", vgpu.Name, vgpu.Status.ConfiguredVGPUTypeName)
+		return nil
+	}
+
+	plugin.RemoveDevice(vgpu.Status.UUID)
+	if plugin.Count() == 0 {
+		logrus.Infof("shutting down device plugin for %s", pluginName)
+		return plugin.Stop()
+	}
+	return nil
+}
+
+// reconcileEnabledVGPUPlugins runs as an out of band handler from the VGPU Device management loop. This is needed as we reconcile CRD to OS state.
+// in case there was an error during CRD status update, subsequent reconcile will generate correct status from CRD.
+// the enable subroutine is skipped in this case and placing the device plugin enable logic will likely miss some devices
+func (h *Handler) reconcileEnabledVGPUPlugins(_ string, vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, error) {
+	if vgpu == nil || vgpu.DeletionTimestamp != nil || vgpu.Spec.NodeName != h.nodeName {
+		return vgpu, nil
+	}
+
+	if vgpu.Spec.Enabled && vgpu.Status.UUID != "" {
+		return vgpu, h.createOrUpdateDevicePlugin(vgpu)
+	}
+
+	return vgpu, nil
+}
+
+func (h *Handler) createOrUpdateDevicePlugin(vgpu *v1beta1.VGPUDevice) error {
+	pluginLock.Lock()
+	defer pluginLock.Unlock()
+	pluginName := gpuhelper.GenerateDeviceName(vgpu.Status.ConfiguredVGPUTypeName)
+	plugin, ok := h.vGPUDevicePlugins[pluginName]
+	if ok {
+		// plugin exists. just publish address and move on
+		if !plugin.DeviceExists(vgpu.Status.UUID) {
+			plugin.AddDevice(vgpu.Status.UUID)
+		}
+		return nil
+	}
+
+	newPlugin := deviceplugins.NewVGPUDevicePlugin(h.ctx, []string{vgpu.Status.UUID}, pluginName)
+	if err := h.startDevicePlugin(newPlugin); err != nil {
+		return err
+	}
+
+	h.vGPUDevicePlugins[pluginName] = newPlugin
+	return nil
+}
+
+func (h *Handler) startDevicePlugin(
+	dp *deviceplugins.VGPUDevicePlugin,
+) error {
+	if dp.Started() {
+		return nil
+	}
+	// Start the plugin
+	stop := make(chan struct{})
+	go func() {
+		err := dp.Start(stop)
+		if err != nil {
+			logrus.Errorf("error starting %s device plugin: %s", dp.GetDeviceName(), err)
+		}
+		// TODO: test if deleting this stops the DevicePlugin
+		<-stop
+	}()
+	dp.SetStarted(stop)
 	return nil
 }

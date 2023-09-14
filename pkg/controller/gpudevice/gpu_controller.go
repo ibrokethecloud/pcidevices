@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/harvester/pcidevices/pkg/deviceplugins"
 	"github.com/sirupsen/logrus"
 	"gitlab.com/nvidia/cloud-native/go-nvlib/pkg/nvpci"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +34,7 @@ type Handler struct {
 	pciDeviceClaimCache ctl.PCIDeviceClaimCache
 	executor            executor.Executor
 	options             []nvpci.Option
+	vGPUDevicePlugins   map[string]*deviceplugins.VGPUDevicePlugin
 }
 
 func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaim ctl.PCIDeviceClaimController, options []nvpci.Option) *Handler {

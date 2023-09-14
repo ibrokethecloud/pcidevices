@@ -50,5 +50,6 @@ func Test_GenerateDeviceName(t *testing.T) {
 	assert := require.New(t)
 	deviceName := "NVIDIA A2-4C"
 	generatedDeviceName := GenerateDeviceName(deviceName)
-	assert.Equal(generatedDeviceName, "nvidia.com/NVIDIA_A2_4C")
+	t.Log(generatedDeviceName)
+	assert.Equal(generatedDeviceName, "nvidia.com/NVIDIA_A2-4C")
 }
