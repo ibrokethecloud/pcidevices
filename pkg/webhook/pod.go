@@ -25,10 +25,11 @@ var matchingLabels = []labels.Set{
 	},
 }
 
-func NewPodMutator(deviceCache v1beta1.PCIDeviceCache, kubevirtCache kubevirtctl.VirtualMachineCache) types.Mutator {
+func NewPodMutator(deviceCache v1beta1.PCIDeviceCache, kubevirtCache kubevirtctl.VirtualMachineCache, vGPUCache v1beta1.VGPUDeviceCache) types.Mutator {
 	return &podMutator{
 		deviceCache:   deviceCache,
 		kubevirtCache: kubevirtCache,
+		vGPUCache:     vGPUCache,
 	}
 }
 
@@ -38,6 +39,7 @@ type podMutator struct {
 	types.DefaultMutator
 	deviceCache   v1beta1.PCIDeviceCache
 	kubevirtCache kubevirtctl.VirtualMachineCache
+	vGPUCache     v1beta1.VGPUDeviceCache
 }
 
 func newResource(ops []admissionregv1.OperationType) types.Resource {
@@ -93,7 +95,7 @@ func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 
 	var found bool
 
-	if len(vm[0].Spec.Template.Spec.Domain.Devices.HostDevices) == 0 {
+	if len(vm[0].Spec.Template.Spec.Domain.Devices.HostDevices) == 0 && len(vm[0].Spec.Template.Spec.Domain.Devices.GPUs) == 0 {
 		logrus.Infof("vm %s in ns %s has no device attachments, skipping", vm[0].Name, vm[0].Namespace)
 		return nil, nil
 	}
@@ -108,6 +110,23 @@ func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 		if len(hostDevices) > 0 {
 			found = true
 			break
+		}
+	}
+
+	// if a PCIDevice is found then it does not matter if VGPU is present
+	// as the capability will be added anyways if not and GPU is present
+	// then SYS_RESOURCE capability is added
+	if !found {
+		for _, v := range vm[0].Spec.Template.Spec.Domain.Devices.GPUs {
+			vGPU, err := m.vGPUCache.Get(v.Name)
+			if err != nil {
+				logrus.Errorf("error listing pcidevices by deviceName for vm %s in ns %s: %v", vm[0].Name, vm[0].Namespace, err)
+				return nil, fmt.Errorf("error listing pcidevices by deviceName: %v", err)
+			}
+
+			if vGPU.Spec.Enabled {
+				found = true
+			}
 		}
 	}
 

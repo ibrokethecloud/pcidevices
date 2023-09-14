@@ -133,3 +133,7 @@ func (h *Handler) disableVGPU(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, er
 	vgpu.Status.ConfiguredVGPUTypeName = ""
 	return h.vGPUClient.UpdateStatus(vgpu)
 }
+
+func (h *Handler) patchKubevirtCR() error {
+	return nil
+}

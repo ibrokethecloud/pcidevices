@@ -3,6 +3,7 @@ module github.com/harvester/pcidevices
 go 1.20
 
 require (
+	github.com/NVIDIA/gpu-monitoring-tools v0.0.0-20211102125545-5a2c58442e48
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/gorilla/mux v1.8.0
@@ -27,6 +28,7 @@ require (
 	k8s.io/apimachinery v0.25.4
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/kube-aggregator v0.25.4
+	k8s.io/kubelet v0.0.0
 	kubevirt.io/client-go v0.54.0
 	kubevirt.io/kubevirt v0.55.1
 	sigs.k8s.io/controller-runtime v0.13.1

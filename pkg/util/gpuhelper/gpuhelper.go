@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -282,4 +283,18 @@ func evalPhysFn(devicePath string) (string, error) {
 	}
 	physFn := strings.Split(physResolvedLink, "/")
 	return physFn[len(physFn)-1], nil
+}
+
+func GenerateDeviceName(deviceName string) string {
+	deviceName = strings.TrimSpace(deviceName)
+	deviceName = strings.ToUpper(deviceName)
+	deviceName = strings.Replace(deviceName, "/", "_", -1)
+	deviceName = strings.Replace(deviceName, ".", "_", -1)
+	deviceName = strings.Replace(deviceName, "-", "_", -1)
+	reg, _ := regexp.Compile(`\s+`)
+	deviceName = reg.ReplaceAllString(deviceName, "_")
+	// Removes any char other than alphanumeric and underscore
+	reg, _ = regexp.Compile("[^a-zA-Z0-9_.]+")
+	deviceName = reg.ReplaceAllString(deviceName, "")
+	return fmt.Sprintf("nvidia.com/%s", deviceName)
 }

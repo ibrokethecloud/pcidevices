@@ -643,9 +643,13 @@ github.com/JeffAshton/win_pdh v0.0.0-20161109143554-76bb4ee9f0ab/go.mod h1:3VYc5
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c/go.mod h1:X0CRv0ky0k6m906ixxpzmDRLvX58TFUKS2eePweuyxk=
 github.com/Knetic/govaluate v3.0.1-0.20171022003610-9aa49832a739+incompatible/go.mod h1:r7JcOSlj0wfOMncg0iLm8Leh48TZaKVeNIfJntJ2wa0=
 github.com/MakeNowJust/heredoc v0.0.0-20170808103936-bb23615498cd/go.mod h1:64YHyfSL2R96J44Nlwm39UHepQbyR5q10x7iYa1ks2E=
+github.com/Masterminds/semver v1.5.0/go.mod h1:MB6lktGJrhw8PrUyiEoblNEGEQ+RzHPF078ddwwvV3Y=
 github.com/Microsoft/go-winio v0.4.15/go.mod h1:tTuCMEN+UleMWgg9dVx4Hu52b1bJo+59jBh3ajtinzw=
 github.com/Microsoft/go-winio v0.4.17/go.mod h1:JPGBdM1cNvN/6ISo+n8V5iA4v8pBzdOpzfwIujj1a84=
 github.com/Microsoft/hcsshim v0.8.22/go.mod h1:91uVCVzvX2QD16sMCenoxxXo6L1wJnLMX2PSufFMtF0=
+github.com/NVIDIA/gpu-monitoring-tools v0.0.0-20211102125545-5a2c58442e48 h1:JO/JF5CBte9mvATbhoh32swu9erf07ZdLgwFj8u21UQ=
+github.com/NVIDIA/gpu-monitoring-tools v0.0.0-20211102125545-5a2c58442e48/go.mod h1:oKPJa5eOTkWvlT4/Y4D8Nds44Fzmww5HUK+xwO+DwTA=
+github.com/NVIDIA/gpu-monitoring-tools/bindings/go/dcgm v0.0.0-20210325210537-29b4f1784f18/go.mod h1:8qXwltEzU3idjUcVpMOv3FNgxxbDeXZPGMLyc/khWiY=
 github.com/NYTimes/gziphandler v0.0.0-20170623195520-56545f4a5d46/go.mod h1:3wb06e3pkSAbeQ52E9H9iFoQsEEwGN64994WTCIhntQ=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
@@ -2512,6 +2516,7 @@ k8s.io/kube-openapi v0.0.0-20220124234850-424119656bbf/go.mod h1:sX9MT8g7NVZM5lV
 k8s.io/kube-proxy v0.23.7/go.mod h1:s7oVqx5a79abQa3jJIyMZE2jEtJc82VGYP9WNWKCwsQ=
 k8s.io/kube-scheduler v0.23.7/go.mod h1:e8sdBJOuSOF+aqvzjMdq4oLmd8TDYiS23Yczt1euS7w=
 k8s.io/kubectl v0.23.7/go.mod h1:/VRj0UzX0IloXNwYzZi95yDL783Dz5k1Ar4ImV5HPFE=
+k8s.io/kubelet v0.23.7 h1:PHsTar1EfLCDHSGLgm4cK41BmmS7enQ33hP6Rq3pqWU=
 k8s.io/kubelet v0.23.7/go.mod h1:Yb3CnwF+lsUOPOc3WWgYErRUFYz6I7StV/N++D2TfM0=
 k8s.io/kubernetes v1.23.14 h1:xqSVDhItGWCsCzZlnj2PHDkDAofaqvPHmKYW7kr8wUE=
 k8s.io/kubernetes v1.23.14/go.mod h1:Z0W84JU7x94gywsN90lP3jNosay9t86a5/qTuaeyMk0=

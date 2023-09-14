@@ -109,3 +109,14 @@ func Test_reconcileVGPUSetup(t *testing.T) {
 	assert.Len(vGPUList.Items, 2, "expected to find only 2 VGPU's")
 
 }
+
+func Test_splitArr(t *testing.T) {
+	arr := []string{"a", "b", "c", "d"}
+	find := "c"
+	for i, v := range arr {
+		if v == find {
+			arr = append(arr[:i], arr[i+1:]...)
+		}
+	}
+	t.Log(arr)
+}

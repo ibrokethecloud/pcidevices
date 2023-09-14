@@ -45,3 +45,10 @@ func Test_fetchVGPUStatus(t *testing.T) {
 	assert.NoError(err, "expected no error while generating vGPU status")
 	assert.NotEmpty(status.AvailableTypes, "expected AvailableTypes to not be empty")
 }
+
+func Test_GenerateDeviceName(t *testing.T) {
+	assert := require.New(t)
+	deviceName := "NVIDIA A2-4C"
+	generatedDeviceName := GenerateDeviceName(deviceName)
+	assert.Equal(generatedDeviceName, "nvidia.com/NVIDIA_A2_4C")
+}
