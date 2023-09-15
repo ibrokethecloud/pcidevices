@@ -1,0 +1,2 @@
+FROM pcidevices:vgpu
+COPY . /go/src/github.com/harvester/pcidevices/

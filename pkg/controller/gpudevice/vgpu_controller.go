@@ -9,7 +9,9 @@ import (
 	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -21,6 +23,11 @@ import (
 
 var (
 	pluginLock sync.Mutex
+)
+
+const (
+	DefaultNS  = "harvester-system"
+	KubevirtCR = "kubevirt"
 )
 
 func (h *Handler) OnVGPUChange(_ string, vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, error) {
@@ -197,6 +204,11 @@ func (h *Handler) reconcileEnabledVGPUPlugins(_ string, vgpu *v1beta1.VGPUDevice
 func (h *Handler) createOrUpdateDevicePlugin(vgpu *v1beta1.VGPUDevice) error {
 	pluginLock.Lock()
 	defer pluginLock.Unlock()
+
+	if err := h.whiteListVGPU(vgpu); err != nil {
+		return err
+	}
+
 	pluginName := gpuhelper.GenerateDeviceName(vgpu.Status.ConfiguredVGPUTypeName)
 	plugin, ok := h.vGPUDevicePlugins[pluginName]
 	if ok {
@@ -234,4 +246,29 @@ func (h *Handler) startDevicePlugin(
 	}()
 	dp.SetStarted(stop)
 	return nil
+}
+
+// whiteListGPU checks if VGPU type is already whitelisted in the kubevirt CR.
+// if not it does the whitelisting
+func (h *Handler) whiteListVGPU(vgpu *v1beta1.VGPUDevice) error {
+	kv, err := h.virtClient.KubeVirt(DefaultNS).Get(KubevirtCR, &v1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("error looking up kubevirt CR: %v", err)
+	}
+
+	for _, v := range kv.Spec.Configuration.PermittedHostDevices.MediatedDevices {
+		if v.ResourceName == gpuhelper.GenerateDeviceName(vgpu.Status.ConfiguredVGPUTypeName) && v.MDEVNameSelector == vgpu.Status.ConfiguredVGPUTypeName && v.ExternalResourceProvider {
+			logrus.Debugf("device type %s already whitelisted, no further action needed", vgpu.Status.ConfiguredVGPUTypeName)
+			return nil
+		}
+	}
+
+	kv.Spec.Configuration.PermittedHostDevices.MediatedDevices = append(kv.Spec.Configuration.PermittedHostDevices.MediatedDevices, kubevirtv1.MediatedHostDevice{
+		ResourceName:             gpuhelper.GenerateDeviceName(vgpu.Status.ConfiguredVGPUTypeName),
+		MDEVNameSelector:         vgpu.Status.ConfiguredVGPUTypeName,
+		ExternalResourceProvider: true,
+	})
+
+	_, err = h.virtClient.KubeVirt(DefaultNS).Update(kv)
+	return err
 }

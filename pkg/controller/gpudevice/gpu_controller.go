@@ -8,10 +8,12 @@ import (
 	"reflect"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
 	"gitlab.com/nvidia/cloud-native/go-nvlib/pkg/nvpci"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"kubevirt.io/client-go/kubecli"
 
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 	"github.com/harvester/pcidevices/pkg/deviceplugins"
@@ -35,9 +37,10 @@ type Handler struct {
 	executor            executor.Executor
 	options             []nvpci.Option
 	vGPUDevicePlugins   map[string]*deviceplugins.VGPUDevicePlugin
+	virtClient          kubecli.KubevirtClient
 }
 
-func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaim ctl.PCIDeviceClaimController, options []nvpci.Option) *Handler {
+func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaim ctl.PCIDeviceClaimController, virtClient kubecli.KubevirtClient, options []nvpci.Option) *Handler {
 	return &Handler{
 		ctx:                 ctx,
 		sriovGPUCache:       sriovGPUController.Cache(),
@@ -49,12 +52,18 @@ func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceContro
 		nodeName:            os.Getenv(v1beta1.NodeEnvVarName),
 		options:             options,
 		vGPUDevicePlugins:   make(map[string]*deviceplugins.VGPUDevicePlugin),
+		virtClient:          virtClient,
 	}
 }
 
 // Register setups up handlers for SRIOVGPUDevices and VGPUDevices
 func Register(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaimController ctl.PCIDeviceClaimController) error {
-	h := NewHandler(ctx, sriovGPUController, vGPUController, pciDeviceClaimController, nil)
+	clientConfig := kubecli.DefaultClientConfig(&pflag.FlagSet{})
+	virtClient, err := kubecli.GetKubevirtClientFromClientConfig(clientConfig)
+	if err != nil {
+		return err
+	}
+	h := NewHandler(ctx, sriovGPUController, vGPUController, pciDeviceClaimController, virtClient, nil)
 	sriovGPUController.OnChange(ctx, "on-gpu-change", h.OnGPUChange)
 	vGPUController.OnChange(ctx, "on-vgpu-change", h.OnVGPUChange)
 	vGPUController.OnChange(ctx, "update-plugins", h.reconcileEnabledVGPUPlugins)
