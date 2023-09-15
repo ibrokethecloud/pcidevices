@@ -172,10 +172,10 @@ func (h *Handler) disableDevicePlugin(vgpu *v1beta1.VGPUDevice) error {
 	}
 
 	plugin.RemoveDevice(vgpu.Status.UUID)
-	if plugin.Count() == 0 {
+	/* if plugin.Count() == 0 {
 		logrus.Infof("shutting down device plugin for %s", pluginName)
 		return plugin.Stop()
-	}
+	}*/
 	return nil
 }
 
@@ -187,7 +187,7 @@ func (h *Handler) reconcileEnabledVGPUPlugins(_ string, vgpu *v1beta1.VGPUDevice
 		return vgpu, nil
 	}
 
-	if vgpu.Spec.Enabled && vgpu.Status.UUID != "" {
+	if vgpu.Spec.Enabled && vgpu.Status.UUID != "" && vgpu.Status.ConfiguredVGPUTypeName != "" {
 		return vgpu, h.createOrUpdateDevicePlugin(vgpu)
 	}
 

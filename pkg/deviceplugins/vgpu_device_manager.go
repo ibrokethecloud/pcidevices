@@ -257,7 +257,7 @@ func (dp *VGPUDevicePlugin) healthCheck() error {
 
 	// This way we don't have to mount /dev from the node
 	devicePath := filepath.Join(dp.deviceRoot, dp.devicePath)
-
+	logrus.Infof("check device path %s", devicePath)
 	// Start watching the files before we check for their existence to avoid races
 	dirName := filepath.Dir(devicePath)
 	err = watcher.Add(dirName)
@@ -276,6 +276,7 @@ func (dp *VGPUDevicePlugin) healthCheck() error {
 	for _, dev := range dp.devs {
 		// get iommuGroup from PCI Addr
 		vgpuDevice := filepath.Join(devicePath, dev.ID)
+		logrus.Infof("adding device %s for watch in plugin %s", vgpuDevice, dp.resourceName)
 		err = watcher.Add(vgpuDevice)
 		if err != nil {
 			return fmt.Errorf("failed to add the device %s to the watcher: %v", vgpuDevice, err)
@@ -283,6 +284,7 @@ func (dp *VGPUDevicePlugin) healthCheck() error {
 		monitoredDevices[dev.ID] = vgpuDevice
 	}
 
+	logrus.Infof("all monitored devices %s for plugin %s", monitoredDevices, dp.resourceName)
 	dirName = filepath.Dir(dp.socketPath)
 	err = watcher.Add(dirName)
 
@@ -299,6 +301,19 @@ func (dp *VGPUDevicePlugin) healthCheck() error {
 		return fmt.Errorf("failed to watch device-plugin socket: %v", err)
 	}
 
+	// run initial health check for devices created before. This works around device restarts
+	// the device plugin runs out of band from the actual device enablement so the first device could be missed by the plugin
+	for monDevID, devPath := range monitoredDevices {
+		_, err := os.Stat(devPath)
+		if err == nil {
+			logrus.Infof("marking devID %s healthy for plugin %s", monDevID, dp.resourceName)
+			dp.health <- deviceHealth{
+				DevID:  monDevID,
+				Health: pluginapi.Healthy,
+			}
+		}
+	}
+
 	for {
 		select {
 		case <-dp.stop:
@@ -307,6 +322,7 @@ func (dp *VGPUDevicePlugin) healthCheck() error {
 			logger.Reason(err).Errorf("error watching devices and device plugin directory")
 		case event := <-watcher.Events:
 			logger.V(4).Infof("health Event: %v", event)
+			logrus.Infof("got event for device %s in plugin %s", event.Name, dp.resourceName)
 			if monDevID, exist := monitoredDevices[event.Name]; exist {
 				// Health in this case is if the device path actually exists
 				if event.Op == fsnotify.Create {
@@ -449,11 +465,13 @@ func (dp *VGPUDevicePlugin) RemoveDevice(uuid string) error {
 		dp.MarkVGPUDeviceAsUnHealthy(uuid)
 	}
 
-	for i, v := range dp.devs {
-		for v.ID == uuid {
-			dp.devs = append(dp.devs[:i], dp.devs[i+1:]...)
+	remainingDev := make([]*pluginapi.Device, 0)
+	for _, v := range dp.devs {
+		for v.ID != uuid {
+			remainingDev = append(remainingDev, v)
 		}
 	}
+	dp.devs = remainingDev
 	return nil
 }
 

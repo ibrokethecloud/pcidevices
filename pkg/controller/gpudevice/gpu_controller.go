@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/harvester/pcidevices/pkg/deviceplugins"
 	"github.com/sirupsen/logrus"
 	"gitlab.com/nvidia/cloud-native/go-nvlib/pkg/nvpci"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
+	"github.com/harvester/pcidevices/pkg/deviceplugins"
 	ctl "github.com/harvester/pcidevices/pkg/generated/controllers/devices.harvesterhci.io/v1beta1"
 	"github.com/harvester/pcidevices/pkg/util/executor"
 	"github.com/harvester/pcidevices/pkg/util/gpuhelper"
@@ -48,6 +48,7 @@ func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceContro
 		executor:            executor.NewLocalExecutor(os.Environ()),
 		nodeName:            os.Getenv(v1beta1.NodeEnvVarName),
 		options:             options,
+		vGPUDevicePlugins:   make(map[string]*deviceplugins.VGPUDevicePlugin),
 	}
 }
 
@@ -56,6 +57,8 @@ func Register(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceControll
 	h := NewHandler(ctx, sriovGPUController, vGPUController, pciDeviceClaimController, nil)
 	sriovGPUController.OnChange(ctx, "on-gpu-change", h.OnGPUChange)
 	vGPUController.OnChange(ctx, "on-vgpu-change", h.OnVGPUChange)
+	vGPUController.OnChange(ctx, "update-plugins", h.reconcileEnabledVGPUPlugins)
+
 	return nil
 }
 
@@ -133,7 +136,7 @@ func (h *Handler) reconcileSRIOVGPUSetup(sriovGPUDevices []*v1beta1.SRIOVGPUDevi
 
 // createOrUpdateSRIOVGPUDevice will check and create GPU if one doesnt exist. If one is found it will perform an update if needed
 func (h *Handler) createOrUpdateSRIOVGPUDevice(gpu *v1beta1.SRIOVGPUDevice) error {
-	existingObj, err := h.sriovGPUCache.Get(gpu.Name)
+	_, err := h.sriovGPUCache.Get(gpu.Name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			_, createErr := h.sriovGPUClient.Create(gpu)
@@ -141,12 +144,7 @@ func (h *Handler) createOrUpdateSRIOVGPUDevice(gpu *v1beta1.SRIOVGPUDevice) erro
 		}
 	}
 
-	if !reflect.DeepEqual(existingObj.Spec, gpu.Spec) {
-		existingObj.Spec = gpu.Spec
-		_, err := h.sriovGPUClient.Update(existingObj)
-		return err
-	}
-	return nil
+	return err
 }
 
 // containsGPUDevices checks if gpu exists in list of devices
