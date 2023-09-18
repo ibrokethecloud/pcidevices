@@ -117,24 +117,26 @@ func IdentifyVGPU(options []nvpci.Option, nodeName string) ([]*v1beta1.VGPUDevic
 
 // generateVGPUDevice generates the v1beta1.VGPUDevice for corresponding NvidiaPCIDevice
 func generateVGPUDevice(device *nvpci.NvidiaPCIDevice, nodeName string) (*v1beta1.VGPUDevice, error) {
-	vgpu := &v1beta1.VGPUDevice{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: v1beta1.PCIDeviceNameForHostname(device.Address, nodeName),
-			Labels: map[string]string{
-				v1beta1.NodeKeyName: nodeName,
-			},
-		},
-		Spec: v1beta1.VGPUDeviceSpec{
-			Address:  device.Address,
-			NodeName: nodeName,
-		},
-	}
-
 	physFn, err := evalPhysFn(device.Path)
 	if err != nil {
 		return nil, err
 	}
-	vgpu.Spec.ParentGPUDeviceAddress = physFn
+
+	vgpu := &v1beta1.VGPUDevice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: v1beta1.PCIDeviceNameForHostname(device.Address, nodeName),
+			Labels: map[string]string{
+				v1beta1.NodeKeyName:               nodeName,
+				v1beta1.ParentSRIOVGPUDeviceLabel: v1beta1.PCIDeviceNameForHostname(physFn, nodeName),
+			},
+		},
+		Spec: v1beta1.VGPUDeviceSpec{
+			Address:                device.Address,
+			NodeName:               nodeName,
+			ParentGPUDeviceAddress: physFn,
+		},
+	}
+
 	status, err := FetchVGPUStatus(v1beta1.MdevRoot, v1beta1.SysDevRoot, v1beta1.MdevBusClassRoot, device.Address)
 	if err != nil {
 		return nil, err

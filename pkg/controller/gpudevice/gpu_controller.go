@@ -32,6 +32,7 @@ type Handler struct {
 	sriovGPUCache       ctl.SRIOVGPUDeviceCache
 	vGPUCache           ctl.VGPUDeviceCache
 	sriovGPUClient      ctl.SRIOVGPUDeviceClient
+	vGPUController      ctl.VGPUDeviceController
 	vGPUClient          ctl.VGPUDeviceClient
 	pciDeviceClaimCache ctl.PCIDeviceClaimCache
 	executor            executor.Executor
@@ -53,6 +54,7 @@ func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceContro
 		options:             options,
 		vGPUDevicePlugins:   make(map[string]*deviceplugins.VGPUDevicePlugin),
 		virtClient:          virtClient,
+		vGPUController:      vGPUController,
 	}
 }
 
@@ -67,7 +69,6 @@ func Register(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceControll
 	sriovGPUController.OnChange(ctx, "on-gpu-change", h.OnGPUChange)
 	vGPUController.OnChange(ctx, "on-vgpu-change", h.OnVGPUChange)
 	vGPUController.OnChange(ctx, "update-plugins", h.reconcileEnabledVGPUPlugins)
-
 	return nil
 }
 

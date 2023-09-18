@@ -40,7 +40,7 @@ type VGPUDevice struct {
 }
 
 type VGPUDeviceSpec struct {
-	VGPUTypeName           string `json:"vGPUTypeName,omitempty"`
+	VGPUTypeName           string `json:"vGPUTypeName"`
 	Address                string `json:"address"`
 	Enabled                bool   `json:"enabled"`
 	NodeName               string `json:"nodeName"`
@@ -57,11 +57,12 @@ type VGPUDeviceStatus struct {
 type VGPUStatus string
 
 const (
-	HarvesterVGPUType              = "vgpu.harvesterhci.io/type"
-	VGPUEnabled         VGPUStatus = "vGPUConfigured"
-	VGPUDisabled        VGPUStatus = ""
-	SysDevRoot                     = "/sys/bus/pci/devices/"
-	MdevRoot                       = "/sys/bus/mdev/devices/"
-	MdevBusClassRoot               = "/sys/class/mdev_bus/"
-	MdevSupportTypesDir            = "mdev_supported_types"
+	HarvesterVGPUType                    = "vgpu.harvesterhci.io/type"
+	VGPUEnabled               VGPUStatus = "vGPUConfigured"
+	VGPUDisabled              VGPUStatus = ""
+	SysDevRoot                           = "/sys/bus/pci/devices/"
+	MdevRoot                             = "/sys/bus/mdev/devices/"
+	MdevBusClassRoot                     = "/sys/class/mdev_bus/"
+	MdevSupportTypesDir                  = "mdev_supported_types"
+	ParentSRIOVGPUDeviceLabel            = "harvesterhci.io/parentSRIOVGPUDevice"
 )

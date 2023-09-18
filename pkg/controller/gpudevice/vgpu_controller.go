@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
@@ -129,7 +128,12 @@ func (h *Handler) enableVGPU(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, err
 
 	vgpu.Status.VGPUStatus = v1beta1.VGPUEnabled
 	vgpu.Status.UUID = vgpuUUID
-	return h.vGPUClient.UpdateStatus(vgpu)
+	vgpuObj, err := h.vGPUClient.UpdateStatus(vgpu)
+	if err != nil {
+		return vgpuObj, err
+	}
+
+	return h.reconcileDisabledVGPUStatus(vgpuObj)
 }
 
 // disableVGPU performs the op to disable VGPU
@@ -161,7 +165,12 @@ func (h *Handler) disableVGPU(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, er
 	vgpu.Status.VGPUStatus = v1beta1.VGPUDisabled
 	vgpu.Status.UUID = ""
 	vgpu.Status.ConfiguredVGPUTypeName = ""
-	return h.vGPUClient.UpdateStatus(vgpu)
+	vgpuObj, err := h.vGPUClient.UpdateStatus(vgpu)
+	if err != nil {
+		return vgpuObj, err
+	}
+
+	return h.reconcileDisabledVGPUStatus(vgpuObj)
 }
 
 func (h *Handler) patchKubevirtCR() error {
@@ -251,7 +260,7 @@ func (h *Handler) startDevicePlugin(
 // whiteListGPU checks if VGPU type is already whitelisted in the kubevirt CR.
 // if not it does the whitelisting
 func (h *Handler) whiteListVGPU(vgpu *v1beta1.VGPUDevice) error {
-	kv, err := h.virtClient.KubeVirt(DefaultNS).Get(KubevirtCR, &v1.GetOptions{})
+	kv, err := h.virtClient.KubeVirt(DefaultNS).Get(KubevirtCR, &metav1.GetOptions{})
 	if err != nil {
 		return fmt.Errorf("error looking up kubevirt CR: %v", err)
 	}
@@ -271,4 +280,30 @@ func (h *Handler) whiteListVGPU(vgpu *v1beta1.VGPUDevice) error {
 
 	_, err = h.virtClient.KubeVirt(DefaultNS).Update(kv)
 	return err
+}
+
+// reconcileDisabledVGPUStatus is needed as when a vgpu is enabled, based on type of vGPU the available types for other vgpu's may change. This ensures that the state of other vGPU's from the same parent GPU is reconcilled immediately to avoid users from attempting to enable unsupported vGPU Types
+func (h *Handler) reconcileDisabledVGPUStatus(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, error) {
+	if vgpu == nil || vgpu.DeletionTimestamp != nil || vgpu.Spec.NodeName != h.nodeName {
+		return vgpu, nil
+	}
+
+	// if a vgpu has been recently configured, then find all related and disabled VGPU's to reconcile availableGPUTypes in status
+	set := map[string]string{
+		v1beta1.ParentSRIOVGPUDeviceLabel: v1beta1.PCIDeviceNameForHostname(vgpu.Spec.ParentGPUDeviceAddress, h.nodeName),
+	}
+	vgpuList, err := h.vGPUCache.List(labels.SelectorFromSet(set))
+	if err != nil {
+		return vgpu, fmt.Errorf("error querying related vgpu's for vgpu %s: %v", vgpu.Name, err)
+	}
+
+	for _, v := range vgpuList {
+		if v.Spec.Enabled || v.Name == vgpu.Name {
+			continue
+		}
+		// enqueue vGPU's to trigger reconcile of new status
+		logrus.Debugf("requeue device %s to force status reconcile", v.Name)
+		h.vGPUController.Enqueue(v.Name)
+	}
+	return vgpu, nil
 }

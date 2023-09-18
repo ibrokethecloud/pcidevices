@@ -310,8 +310,14 @@ spec:
     - jsonPath: .spec.enabled
       name: Enabled
       type: string
-    - jsonPath: .status.vGPUDevices
-      name: VGPUDevices
+    - jsonPath: .status.uuid
+      name: UUID
+      type: string
+    - jsonPath: .status.configureVGPUTypeName
+      name: VGPUType
+      type: string
+    - jsonPath: .spec.parentGPUDeviceAddress
+      name: ParentGPUDevice
       type: string
     name: v1beta1
     schema:
@@ -667,8 +673,14 @@ spec:
   - JSONPath: .spec.enabled
     name: Enabled
     type: string
-  - JSONPath: .status.vGPUDevices
-    name: VGPUDevices
+  - JSONPath: .status.uuid
+    name: UUID
+    type: string
+  - JSONPath: .status.configureVGPUTypeName
+    name: VGPUType
+    type: string
+  - JSONPath: .spec.parentGPUDeviceAddress
+    name: ParentGPUDevice
     type: string
   group: devices.harvesterhci.io
   names:
