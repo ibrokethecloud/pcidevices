@@ -41,6 +41,10 @@ import (
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 )
 
+const (
+	vgpuPrefix = "MDEV_PCI_RESOURCE"
+)
+
 type VGPUDevicePlugin struct {
 	devs         []*pluginapi.Device
 	server       *grpc.Server
@@ -211,7 +215,7 @@ func (dp *VGPUDevicePlugin) ListAndWatch(_ *pluginapi.Empty, s pluginapi.DeviceP
 
 func (dp *VGPUDevicePlugin) Allocate(_ context.Context, r *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
 	logrus.Debugf("Allocate request %s", r.String())
-	resourceNameEnvVar := util.ResourceNameToEnvVar(PCIResourcePrefix, dp.resourceName)
+	resourceNameEnvVar := util.ResourceNameToEnvVar(vgpuPrefix, dp.resourceName)
 	allocatedDevices := []string{}
 	resp := new(pluginapi.AllocateResponse)
 	containerResponse := new(pluginapi.ContainerAllocateResponse)

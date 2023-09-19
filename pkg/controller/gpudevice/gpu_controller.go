@@ -85,10 +85,12 @@ func (h *Handler) OnGPUChange(_ string, gpu *v1beta1.SRIOVGPUDevice) (*v1beta1.S
 
 	// perform enable/disable operation as needed
 	if gpu.Spec.Enabled != enabled {
-		return gpu, h.manageGPU(gpu.Spec.Address, gpu.Spec.Enabled)
+		logrus.Debugf("performing gpu management for %s", gpu.Name)
+		return h.manageGPU(gpu)
 	}
 
 	if !reflect.DeepEqual(gpu.Status, gpuStatus) {
+		logrus.Debugf("updating gpu status for %s:", gpu.Name)
 		gpu.Status = *gpuStatus
 		return h.sriovGPUClient.UpdateStatus(gpu)
 	}
@@ -168,18 +170,23 @@ func containsGPUDevices(gpu *v1beta1.SRIOVGPUDevice, gpuList []*v1beta1.SRIOVGPU
 }
 
 // manageGPU performs sriovmanage on the appropriate GPU
-func (h *Handler) manageGPU(address string, enable bool) error {
+func (h *Handler) manageGPU(gpu *v1beta1.SRIOVGPUDevice) (*v1beta1.SRIOVGPUDevice, error) {
 	var args []string
-	if enable {
-		args = append(args, "-e", address)
+	if gpu.Spec.Enabled {
+		args = append(args, "-e", gpu.Spec.Address)
 	} else {
-		args = append(args, "-d", address)
+		args = append(args, "-d", gpu.Spec.Address)
 	}
 	output, err := h.executor.Run(sriovManageCommand, args)
 	if err != nil {
 		logrus.Error(string(output))
-		return fmt.Errorf("error performing sriovmanage operation: %v", err)
+		return gpu, fmt.Errorf("error performing sriovmanage operation: %v", err)
 	}
-	logrus.Debug(output)
-	return nil
+	logrus.Debugf("sriov-manage output: %s", string(output))
+	_, gpuStatus, err := gpuhelper.GenerateGPUStatus(filepath.Join(v1beta1.SysDevRoot, gpu.Spec.Address), gpu.Spec.NodeName)
+	if err != nil {
+		return gpu, err
+	}
+	gpu.Status = *gpuStatus
+	return h.sriovGPUClient.UpdateStatus(gpu)
 }

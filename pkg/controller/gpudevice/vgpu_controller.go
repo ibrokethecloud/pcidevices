@@ -282,7 +282,7 @@ func (h *Handler) whiteListVGPU(vgpu *v1beta1.VGPUDevice) error {
 	return err
 }
 
-// reconcileDisabledVGPUStatus is needed as when a vgpu is enabled, based on type of vGPU the available types for other vgpu's may change. This ensures that the state of other vGPU's from the same parent GPU is reconcilled immediately to avoid users from attempting to enable unsupported vGPU Types
+// reconcileDisabledVGPUStatus is needed as when a vgpu is enabled, based on type of vGPU the available types for other vgpu's may change. This ensures that the state of other vGPU's from the same parent GPU is reconciled immediately to avoid users from attempting to enable unsupported vGPU Types
 func (h *Handler) reconcileDisabledVGPUStatus(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, error) {
 	if vgpu == nil || vgpu.DeletionTimestamp != nil || vgpu.Spec.NodeName != h.nodeName {
 		return vgpu, nil
