@@ -265,6 +265,10 @@ func (h *Handler) whiteListVGPU(vgpu *v1beta1.VGPUDevice) error {
 		return fmt.Errorf("error looking up kubevirt CR: %v", err)
 	}
 
+	if kv.Spec.Configuration.PermittedHostDevices == nil {
+		kv.Spec.Configuration.PermittedHostDevices = &kubevirtv1.PermittedHostDevices{}
+	}
+
 	for _, v := range kv.Spec.Configuration.PermittedHostDevices.MediatedDevices {
 		if v.ResourceName == gpuhelper.GenerateDeviceName(vgpu.Status.ConfiguredVGPUTypeName) && v.MDEVNameSelector == vgpu.Status.ConfiguredVGPUTypeName && v.ExternalResourceProvider {
 			logrus.Debugf("device type %s already whitelisted, no further action needed", vgpu.Status.ConfiguredVGPUTypeName)

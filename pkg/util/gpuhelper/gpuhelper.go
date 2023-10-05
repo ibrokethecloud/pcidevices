@@ -296,7 +296,7 @@ func GenerateDeviceName(deviceName string) string {
 	reg, _ := regexp.Compile(`\s+`)
 	deviceName = reg.ReplaceAllString(deviceName, "_")
 	// Removes any char other than alphanumeric and underscore
-	reg, _ = regexp.Compile("[^a-zA-Z0-9_\\-.]+")
+	reg, _ = regexp.Compile(`^a-zA-Z0-9_-.]+`)
 	deviceName = reg.ReplaceAllString(deviceName, "")
 	return fmt.Sprintf("nvidia.com/%s", deviceName)
 }
