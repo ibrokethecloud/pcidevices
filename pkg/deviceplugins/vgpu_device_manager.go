@@ -436,6 +436,8 @@ func (dp *VGPUDevicePlugin) setInitialized(initialized bool) {
 // This function adds the VGPU UUID to device plugin for corresponding VGPU type
 func (dp *VGPUDevicePlugin) AddDevice(uuid string) error {
 	var exists bool
+	dp.lock.Lock()
+	defer dp.lock.Unlock()
 	for _, v := range dp.devs {
 		if v.ID == uuid {
 			exists = true
@@ -464,18 +466,12 @@ func (dp *VGPUDevicePlugin) MarkVGPUDeviceAsHealthy(uuid string) {
 // This function removes the VGPU ID from device plugin and also updates
 // devs being reconilled by VGPUDevicePlugin
 func (dp *VGPUDevicePlugin) RemoveDevice(uuid string) error {
+	dp.lock.Lock()
+	defer dp.lock.Unlock()
 	if dp != nil {
 		logrus.Infof("Removing %s from device plugin", uuid)
 		dp.MarkVGPUDeviceAsUnHealthy(uuid)
 	}
-
-	remainingDev := make([]*pluginapi.Device, 0)
-	for _, v := range dp.devs {
-		for v.ID != uuid {
-			remainingDev = append(remainingDev, v)
-		}
-	}
-	dp.devs = remainingDev
 	return nil
 }
 
@@ -486,12 +482,6 @@ func (dp *VGPUDevicePlugin) MarkVGPUDeviceAsUnHealthy(uuid string) {
 			Health: pluginapi.Unhealthy,
 		}
 	}()
-}
-
-// Count returns number of devices being served by this plugin.
-// Value of count is used to decide if there are no more devices left and shutdown the plugin.
-func (dp *VGPUDevicePlugin) Count() int {
-	return len(dp.devs)
 }
 
 func (dp *VGPUDevicePlugin) DeviceExists(uuid string) bool {

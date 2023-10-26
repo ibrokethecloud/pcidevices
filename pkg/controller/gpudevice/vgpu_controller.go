@@ -187,11 +187,17 @@ func (h *Handler) disableDevicePlugin(vgpu *v1beta1.VGPUDevice) error {
 		return nil
 	}
 
-	plugin.RemoveDevice(vgpu.Status.UUID)
-	/* if plugin.Count() == 0 {
+	if err := plugin.RemoveDevice(vgpu.Status.UUID); err != nil {
+		return fmt.Errorf("error removing device: %v", err)
+	}
+
+	if plugin.GetCount() == 0 {
 		logrus.Infof("shutting down device plugin for %s", pluginName)
-		return plugin.Stop()
-	}*/
+		if err := plugin.Stop(); err != nil {
+			return err
+		}
+		delete(h.vGPUDevicePlugins, pluginName)
+	}
 	return nil
 }
 
