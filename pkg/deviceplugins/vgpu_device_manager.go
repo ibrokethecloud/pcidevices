@@ -70,6 +70,7 @@ func (dp *VGPUDevicePlugin) GetCount() int {
 			count++
 		}
 	}
+	logrus.Debugf("found device count %d for plugin %s", count, dp.resourceName)
 	return count
 }
 
@@ -186,9 +187,9 @@ func (dp *VGPUDevicePlugin) ListAndWatch(_ *pluginapi.Empty, s pluginapi.DeviceP
 	for {
 		select {
 		case devHealth := <-dp.health:
-			for _, dev := range dp.devs {
+			for i, dev := range dp.devs {
 				if devHealth.DevID == dev.ID {
-					dev.Health = devHealth.Health
+					dp.devs[i].Health = devHealth.Health
 				}
 			}
 			if err := s.Send(&pluginapi.ListAndWatchResponse{Devices: dp.devs}); err != nil {
@@ -472,16 +473,20 @@ func (dp *VGPUDevicePlugin) RemoveDevice(uuid string) error {
 		logrus.Infof("Removing %s from device plugin", uuid)
 		dp.MarkVGPUDeviceAsUnHealthy(uuid)
 	}
+
+	for i, dev := range dp.devs {
+		if dev.ID == uuid {
+			dp.devs[i].Health = pluginapi.Unhealthy
+		}
+	}
 	return nil
 }
 
 func (dp *VGPUDevicePlugin) MarkVGPUDeviceAsUnHealthy(uuid string) {
-	go func() {
-		dp.health <- deviceHealth{
-			DevID:  uuid,
-			Health: pluginapi.Unhealthy,
-		}
-	}()
+	dp.health <- deviceHealth{
+		DevID:  uuid,
+		Health: pluginapi.Unhealthy,
+	}
 }
 
 func (dp *VGPUDevicePlugin) DeviceExists(uuid string) bool {
