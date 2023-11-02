@@ -65,4 +65,6 @@ const (
 	MdevBusClassRoot                     = "/sys/class/mdev_bus/"
 	MdevSupportTypesDir                  = "mdev_supported_types"
 	ParentSRIOVGPUDeviceLabel            = "harvesterhci.io/parentSRIOVGPUDevice"
+	DefaultNamespace                     = "harvester-system"
+	NvidiaDriverLabel                    = "app=nvidia-driver-daemonset"
 )

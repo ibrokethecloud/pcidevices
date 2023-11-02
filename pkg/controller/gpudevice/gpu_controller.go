@@ -13,6 +13,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/rest"
 	"kubevirt.io/client-go/kubecli"
 
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
@@ -41,7 +42,20 @@ type Handler struct {
 	virtClient          kubecli.KubevirtClient
 }
 
-func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaim ctl.PCIDeviceClaimController, virtClient kubecli.KubevirtClient, options []nvpci.Option) *Handler {
+func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaim ctl.PCIDeviceClaimController, virtClient kubecli.KubevirtClient, options []nvpci.Option, cfg *rest.Config) (*Handler, error) {
+	nodeName := os.Getenv(v1beta1.NodeEnvVarName)
+
+	var remoteExec executor.Executor
+	if cfg == nil {
+		remoteExec = executor.NewLocalExecutor(os.Environ())
+	} else {
+		var err error
+		remoteExec, err = executor.NewRemoteCommandExecutor(ctx, cfg, nodeName, v1beta1.DefaultNamespace, v1beta1.NvidiaDriverLabel)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &Handler{
 		ctx:                 ctx,
 		sriovGPUCache:       sriovGPUController.Cache(),
@@ -49,23 +63,26 @@ func NewHandler(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceContro
 		vGPUCache:           vGPUController.Cache(),
 		vGPUClient:          vGPUController,
 		pciDeviceClaimCache: pciDeviceClaim.Cache(),
-		executor:            executor.NewLocalExecutor(os.Environ()),
-		nodeName:            os.Getenv(v1beta1.NodeEnvVarName),
+		executor:            remoteExec,
+		nodeName:            nodeName,
 		options:             options,
 		vGPUDevicePlugins:   make(map[string]*deviceplugins.VGPUDevicePlugin),
 		virtClient:          virtClient,
 		vGPUController:      vGPUController,
-	}
+	}, nil
 }
 
 // Register setups up handlers for SRIOVGPUDevices and VGPUDevices
-func Register(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaimController ctl.PCIDeviceClaimController) error {
+func Register(ctx context.Context, sriovGPUController ctl.SRIOVGPUDeviceController, vGPUController ctl.VGPUDeviceController, pciDeviceClaimController ctl.PCIDeviceClaimController, cfg *rest.Config) error {
 	clientConfig := kubecli.DefaultClientConfig(&pflag.FlagSet{})
 	virtClient, err := kubecli.GetKubevirtClientFromClientConfig(clientConfig)
 	if err != nil {
 		return err
 	}
-	h := NewHandler(ctx, sriovGPUController, vGPUController, pciDeviceClaimController, virtClient, nil)
+	h, err := NewHandler(ctx, sriovGPUController, vGPUController, pciDeviceClaimController, virtClient, nil, cfg)
+	if err != nil {
+		return err
+	}
 	sriovGPUController.OnChange(ctx, "on-gpu-change", h.OnGPUChange)
 	vGPUController.OnChange(ctx, "on-vgpu-change", h.OnVGPUChange)
 	vGPUController.OnChange(ctx, "update-plugins", h.reconcileEnabledVGPUPlugins)

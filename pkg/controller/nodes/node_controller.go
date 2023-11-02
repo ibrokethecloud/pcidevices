@@ -100,7 +100,7 @@ func (h *handler) reconcileNodeDevices(name string, node *v1beta1.Node) (*v1beta
 	if err != nil {
 		return nil, fmt.Errorf("error setting up sriov devices for node %s: %v", h.nodeName, err)
 	}
-	gpuhelper := gpudevice.NewHandler(h.ctx, h.sriovGPUController, h.vGPUController, h.pciDeviceClaimController, nil, nil)
+	gpuhelper, _ := gpudevice.NewHandler(h.ctx, h.sriovGPUController, h.vGPUController, h.pciDeviceClaimController, nil, nil, nil)
 	err = gpuhelper.SetupSRIOVGPUDevices()
 	if err != nil {
 		return nil, fmt.Errorf("error setting up SRIOV GPU devices for node %s: %v", h.nodeName, err)

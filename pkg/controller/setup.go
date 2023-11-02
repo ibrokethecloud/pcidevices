@@ -103,7 +103,7 @@ func Setup(ctx context.Context, cfg *rest.Config, _ *runtime.Scheme) error {
 		return fmt.Errorf("error registering nodecleanup controller: %v", err)
 	}
 
-	if err := gpudevice.Register(ctx, sriovGPUCtl, vGPUCtl, pdcCtl); err != nil {
+	if err := gpudevice.Register(ctx, sriovGPUCtl, vGPUCtl, pdcCtl, cfg); err != nil {
 		return fmt.Errorf("error registering gpudevice controller :%v", err)
 	}
 	if err := start.All(ctx, 2, coreFactory, networkFactory, pciFactory); err != nil {
