@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -23,9 +22,12 @@ import (
 )
 
 type RemoteCommandExecutor struct {
-	options   *exec.ExecOptions
-	outBuffer *bytes.Buffer
-	errBuffer *bytes.Buffer
+	client    *kubernetes.Clientset
+	nodeName  string
+	namespace string
+	label     string
+	cfg       *rest.Config
+	ctx       context.Context
 }
 
 // NewRemoteCommandExecutor is an implementation of Executor that runs commands in the driver pod
@@ -40,16 +42,28 @@ func NewRemoteCommandExecutor(ctx context.Context, config *rest.Config, nodeName
 		return nil, fmt.Errorf("error generating client for config in remote command executor: %v", err)
 	}
 
-	pod, err := fetchPod(ctx, client, nodeName, namespace, label)
+	r := &RemoteCommandExecutor{
+		client:    client,
+		cfg:       &cfgCopy,
+		ctx:       ctx,
+		namespace: namespace,
+		label:     label,
+		nodeName:  nodeName,
+	}
+	return r, nil
+}
+
+func (r *RemoteCommandExecutor) Run(cmd string, args []string) ([]byte, error) {
+	pod, err := fetchPod(r.ctx, r.client, r.nodeName, r.namespace, r.label)
 	if err != nil {
 		return nil, err
 	}
 
-	logrus.Debugf("found pod %s for node %s", pod.Name, nodeName)
+	logrus.Debugf("found pod %s for node %s", pod.Name, r.nodeName)
 	iostreams, _, outBuffer, errBuffer := genericclioptions.NewTestIOStreams()
 
 	streamOpts := exec.StreamOptions{
-		Namespace:     namespace,
+		Namespace:     r.namespace,
 		PodName:       pod.Name,
 		ContainerName: pod.Spec.Containers[0].Name,
 		IOStreams:     iostreams,
@@ -60,27 +74,18 @@ func NewRemoteCommandExecutor(ctx context.Context, config *rest.Config, nodeName
 
 	options := &exec.ExecOptions{
 		StreamOptions: streamOpts,
-		PodClient:     client.CoreV1(),
-		Config:        &cfgCopy,
+		PodClient:     r.client.CoreV1(),
+		Config:        r.cfg,
 		Executor:      &exec.DefaultRemoteExecutor{},
 	}
 
-	r := &RemoteCommandExecutor{
-		options:   options,
-		outBuffer: outBuffer,
-		errBuffer: errBuffer,
-	}
-	return r, nil
-}
-
-func (r *RemoteCommandExecutor) Run(cmd string, args []string) ([]byte, error) {
 	cmdString := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
-	r.options.Command = []string{"/bin/sh", "-c", cmdString}
-	err := r.options.Run()
+	options.Command = []string{"/bin/sh", "-c", cmdString}
+	err = options.Run()
 	if err != nil {
-		return r.errBuffer.Bytes(), fmt.Errorf("error during command execution: %v", err)
+		return errBuffer.Bytes(), fmt.Errorf("error during command execution: %v", err)
 	}
-	return r.outBuffer.Bytes(), nil
+	return outBuffer.Bytes(), nil
 }
 
 // fetchPod will identify the nvidia driver pod on the host matching nodeName where the remote command will be executed

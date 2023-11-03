@@ -59,7 +59,7 @@ func (h *Handler) OnVGPUChange(_ string, vgpu *v1beta1.VGPUDevice) (*v1beta1.VGP
 func (h *Handler) SetupVGPUDevices() error {
 	vGPUDevices, err := gpuhelper.IdentifyVGPU(h.options, h.nodeName)
 	if err != nil {
-		return nil
+		return fmt.Errorf("error identifying vgpu devices: %v", err)
 	}
 	return h.reconcileVGPUSetup(vGPUDevices)
 }

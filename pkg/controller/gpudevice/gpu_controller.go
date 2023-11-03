@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	sriovManageCommand = "/host//usr/lib/nvidia/sriov-manage"
+	sriovManageCommand = "/usr/lib/nvidia/sriov-manage"
 )
 
 type Handler struct {
