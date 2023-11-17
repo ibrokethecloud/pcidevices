@@ -116,7 +116,7 @@ func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 	// if a PCIDevice is found then it does not matter if VGPU is present
 	// as the capability will be added anyways if not and GPU is present
 	// then SYS_RESOURCE capability is added
-	if !found {
+	/* if !found {
 		for _, v := range vm[0].Spec.Template.Spec.Domain.Devices.GPUs {
 			vGPU, err := m.vGPUCache.Get(v.Name)
 			if err != nil {
@@ -128,6 +128,10 @@ func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 				found = true
 			}
 		}
+	}*/
+
+	if !found && len(vm[0].Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+		found = true
 	}
 
 	if found {
