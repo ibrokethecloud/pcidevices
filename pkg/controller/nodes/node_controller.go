@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/harvester/pcidevices/pkg/controller/gpudevice"
@@ -13,6 +14,7 @@ import (
 	ctlcorev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 	"github.com/harvester/pcidevices/pkg/controller/pcidevice"
@@ -34,6 +36,7 @@ type handler struct {
 	nodeName                 string
 	vlanConfigCache          ctlnetworkv1beta1.VlanConfigCache
 	coreNodeCache            ctlcorev1.NodeCache
+	coreNodeCtl              ctlcorev1.NodeController
 	nodeCtl                  ctl.NodeController
 	sriovNetworkDeviceCache  ctl.SRIOVNetworkDeviceCache
 	vGPUController           ctl.VGPUDeviceController
@@ -46,7 +49,7 @@ const (
 )
 
 func Register(ctx context.Context, sriovCtl ctl.SRIOVNetworkDeviceController, pciDeviceCtl ctl.PCIDeviceController,
-	nodeCtl ctl.NodeController, coreNodeCache ctlcorev1.NodeCache, vlanConfigCache ctlnetworkv1beta1.VlanConfigCache,
+	nodeCtl ctl.NodeController, coreNodeCtl ctlcorev1.NodeController, vlanConfigCache ctlnetworkv1beta1.VlanConfigCache,
 	sriovNetworkDeviceCache ctl.SRIOVNetworkDeviceCache, pciDeviceClaimController ctl.PCIDeviceClaimController, vGPUController ctl.VGPUDeviceController,
 	sriovGPUController ctl.SRIOVGPUDeviceController) error {
 	nodeName := os.Getenv(v1beta1.NodeEnvVarName)
@@ -57,7 +60,8 @@ func Register(ctx context.Context, sriovCtl ctl.SRIOVNetworkDeviceController, pc
 		pciDeviceClient:          pciDeviceCtl,
 		pciDeviceCache:           pciDeviceCtl.Cache(),
 		nodeName:                 nodeName,
-		coreNodeCache:            coreNodeCache,
+		coreNodeCache:            coreNodeCtl.Cache(),
+		coreNodeCtl:              coreNodeCtl,
 		vlanConfigCache:          vlanConfigCache,
 		nodeCtl:                  nodeCtl,
 		sriovNetworkDeviceCache:  sriovNetworkDeviceCache,
@@ -111,6 +115,11 @@ func (h *handler) reconcileNodeDevices(name string, node *v1beta1.Node) (*v1beta
 		return nil, fmt.Errorf("error setting VGPU devices for node %s: %v", h.nodeName, err)
 	}
 
+	err = checkAndUpdateNodeLabels(h.nodeName, h.coreNodeCtl.Cache(), h.coreNodeCtl, h.sriovGPUController.Cache())
+	if err != nil {
+		return nil, fmt.Errorf("error updating node labels for node %s: %v", h.nodeName, err)
+	}
+
 	h.nodeCtl.EnqueueAfter(name, defaultRequeuePeriod)
 	return node, err
 }
@@ -133,4 +142,50 @@ func SetupNodeObjects(nodeCtl ctl.NodeController) error {
 	}
 
 	return nil
+}
+
+// checkAndUpdateNodeLabels checks if a node has SRIOV capable GPU's and updates label
+// sriovgpu.harvesterhci.io/driver-needed=true
+// this label is in turn used by the NVIDIA driver daemonset to ensure scheduling to this node
+func checkAndUpdateNodeLabels(nodeName string, nodeCache ctlcorev1.NodeCache, nodeClient ctlcorev1.NodeClient, sriovGPUCache ctl.SRIOVGPUDeviceCache) error {
+	set := map[string]string{
+		v1beta1.NodeKeyName: nodeName,
+	}
+
+	existingGPUs, err := sriovGPUCache.List(labels.SelectorFromSet(set))
+	if err != nil {
+		return err
+	}
+
+	var removeLabel bool
+	if len(existingGPUs) == 0 {
+		removeLabel = true
+	} else {
+		removeLabel = false
+	}
+
+	nodeObj, err := nodeCache.Get(nodeName)
+	if err != nil {
+		return err
+	}
+
+	if nodeObj.Labels == nil {
+		nodeObj.Labels = make(map[string]string)
+	}
+
+	nodeObjCopy := nodeObj.DeepCopy()
+	_, labelPresent := nodeObj.Labels[v1beta1.NvidiaDriverNeededKey]
+	if labelPresent && removeLabel {
+		delete(nodeObj.Labels, v1beta1.NvidiaDriverNeededKey)
+	}
+	if !labelPresent && !removeLabel {
+		nodeObj.Labels[v1beta1.NvidiaDriverNeededKey] = "true"
+	}
+
+	// update object if needed
+	if !reflect.DeepEqual(nodeObj.Labels, nodeObjCopy.Labels) {
+		_, err = nodeClient.Update(nodeObj)
+	}
+
+	return err
 }

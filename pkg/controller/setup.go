@@ -90,7 +90,7 @@ func Setup(ctx context.Context, cfg *rest.Config, _ *runtime.Scheme) error {
 		return fmt.Errorf("error registering pcidevicclaim controllers :%v", err)
 	}
 
-	if err := nodes.Register(ctx, sriovCtl, pdCtl, nodeCtl, coreNodeCtl.Cache(), vlanCtl.Cache(),
+	if err := nodes.Register(ctx, sriovCtl, pdCtl, nodeCtl, coreNodeCtl, vlanCtl.Cache(),
 		sriovNetworkDeviceCache, pdcCtl, vGPUCtl, sriovGPUCtl); err != nil {
 		return fmt.Errorf("error registering node controller: %v", err)
 	}

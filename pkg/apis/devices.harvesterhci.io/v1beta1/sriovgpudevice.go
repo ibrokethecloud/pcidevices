@@ -67,4 +67,5 @@ const (
 	ParentSRIOVGPUDeviceLabel            = "harvesterhci.io/parentSRIOVGPUDevice"
 	DefaultNamespace                     = "harvester-system"
 	NvidiaDriverLabel                    = "app=nvidia-driver-daemonset"
+	NvidiaDriverNeededKey                = "sriovgpu.harvesterhci.io/driver-needed"
 )
