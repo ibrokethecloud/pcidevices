@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/harvester/pcidevices/pkg/controller/gpudevice"
-
-	ctlnetwork "github.com/harvester/harvester-network-controller/pkg/generated/controllers/network.harvesterhci.io"
 	"github.com/rancher/lasso/pkg/cache"
 	"github.com/rancher/lasso/pkg/client"
 	"github.com/rancher/lasso/pkg/controller"
@@ -18,6 +15,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/workqueue"
 
+	ctlnetwork "github.com/harvester/harvester-network-controller/pkg/generated/controllers/network.harvesterhci.io"
+
+	"github.com/harvester/pcidevices/pkg/controller/gpudevice"
 	"github.com/harvester/pcidevices/pkg/controller/nodecleanup"
 	"github.com/harvester/pcidevices/pkg/controller/nodes"
 	"github.com/harvester/pcidevices/pkg/controller/pcideviceclaim"
@@ -84,6 +84,7 @@ func Setup(ctx context.Context, cfg *rest.Config, _ *runtime.Scheme) error {
 	sriovNetworkDeviceCache := sriovCtl.Cache()
 	sriovGPUCtl := pciFactory.Devices().V1beta1().SRIOVGPUDevice()
 	vGPUCtl := pciFactory.Devices().V1beta1().VGPUDevice()
+	podCtl := coreFactory.Core().V1().Pod()
 	RegisterIndexers(sriovNetworkDeviceCache)
 
 	if err := pcideviceclaim.Register(ctx, pdcCtl, pdCtl); err != nil {
@@ -103,7 +104,7 @@ func Setup(ctx context.Context, cfg *rest.Config, _ *runtime.Scheme) error {
 		return fmt.Errorf("error registering nodecleanup controller: %v", err)
 	}
 
-	if err := gpudevice.Register(ctx, sriovGPUCtl, vGPUCtl, pdcCtl, cfg); err != nil {
+	if err := gpudevice.Register(ctx, sriovGPUCtl, vGPUCtl, pdcCtl, podCtl, cfg); err != nil {
 		return fmt.Errorf("error registering gpudevice controller :%v", err)
 	}
 	if err := start.All(ctx, 2, coreFactory, networkFactory, pciFactory); err != nil {

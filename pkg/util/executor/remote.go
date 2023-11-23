@@ -7,8 +7,6 @@ import (
 
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
-	"github.com/sirupsen/logrus"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -22,17 +20,15 @@ import (
 )
 
 type RemoteCommandExecutor struct {
-	client    *kubernetes.Clientset
-	nodeName  string
-	namespace string
-	label     string
-	cfg       *rest.Config
-	ctx       context.Context
+	client *kubernetes.Clientset
+	pod    *corev1.Pod
+	cfg    *rest.Config
+	ctx    context.Context
 }
 
 // NewRemoteCommandExecutor is an implementation of Executor that runs commands in the driver pod
 // which allows us to ship custom drivers as container images
-func NewRemoteCommandExecutor(ctx context.Context, config *rest.Config, nodeName string, namespace string, label string) (*RemoteCommandExecutor, error) {
+func NewRemoteCommandExecutor(ctx context.Context, config *rest.Config, pod *corev1.Pod) (*RemoteCommandExecutor, error) {
 	cfgCopy := *config
 	cfgCopy.GroupVersion = &schema.GroupVersion{Group: "", Version: "v1"}
 	cfgCopy.NegotiatedSerializer = serializer.WithoutConversionCodecFactory{CodecFactory: scheme.Codecs}
@@ -43,29 +39,20 @@ func NewRemoteCommandExecutor(ctx context.Context, config *rest.Config, nodeName
 	}
 
 	r := &RemoteCommandExecutor{
-		client:    client,
-		cfg:       &cfgCopy,
-		ctx:       ctx,
-		namespace: namespace,
-		label:     label,
-		nodeName:  nodeName,
+		client: client,
+		cfg:    &cfgCopy,
+		ctx:    ctx,
+		pod:    pod,
 	}
 	return r, nil
 }
 
 func (r *RemoteCommandExecutor) Run(cmd string, args []string) ([]byte, error) {
-	pod, err := fetchPod(r.ctx, r.client, r.nodeName, r.namespace, r.label)
-	if err != nil {
-		return nil, err
-	}
-
-	logrus.Debugf("found pod %s for node %s", pod.Name, r.nodeName)
 	iostreams, _, outBuffer, errBuffer := genericclioptions.NewTestIOStreams()
-
 	streamOpts := exec.StreamOptions{
-		Namespace:     r.namespace,
-		PodName:       pod.Name,
-		ContainerName: pod.Spec.Containers[0].Name,
+		Namespace:     r.pod.Namespace,
+		PodName:       r.pod.Name,
+		ContainerName: r.pod.Spec.Containers[0].Name,
 		IOStreams:     iostreams,
 		TTY:           false,
 		Quiet:         true,
@@ -81,7 +68,7 @@ func (r *RemoteCommandExecutor) Run(cmd string, args []string) ([]byte, error) {
 
 	cmdString := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
 	options.Command = []string{"/bin/sh", "-c", cmdString}
-	err = options.Run()
+	err := options.Run()
 	if err != nil {
 		return errBuffer.Bytes(), fmt.Errorf("error during command execution: %v", err)
 	}

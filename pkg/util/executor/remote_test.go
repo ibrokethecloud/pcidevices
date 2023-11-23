@@ -86,9 +86,11 @@ func TestMain(t *testing.M) {
 func Test_RemoteCommandExecutor(t *testing.T) {
 	assert := require.New(t)
 	// execute command on kube-proxy pod on first node in the cluster
-	nodes, err := client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
-	assert.NoError(err)
-	r, err := NewRemoteCommandExecutor(context.TODO(), cfg, nodes.Items[0].Name, "kube-system", "k8s-app=kube-proxy")
+	pods, err := client.CoreV1().Pods("kube-system").List(context.TODO(), metav1.ListOptions{
+		LabelSelector: "k8s-app=kube-proxy",
+	})
+	assert.NoError(err, "expected no error while listing kube-proxy pods")
+	r, err := NewRemoteCommandExecutor(context.TODO(), cfg, &pods.Items[0])
 	assert.NoError(err)
 	out, err := r.Run("echo", []string{"-n", "message"})
 	assert.NoError(err, string(out))
