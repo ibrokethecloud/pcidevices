@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/pcidevices/pkg/generated/controllers/devices.harvesterhci.io/v1beta1"
 )
@@ -100,55 +101,50 @@ func (m *podMutator) Create(_ *types.Request, newObj runtime.Object) (types.Patc
 		return nil, nil
 	}
 
-	for _, v := range vm[0].Spec.Template.Spec.Domain.Devices.HostDevices {
-		hostDevices, err := m.deviceCache.GetByIndex(PCIDeviceByResourceName, v.DeviceName)
-		if err != nil {
-			logrus.Errorf("error listing pcidevices by deviceName for vm %s in ns %s: %v", vm[0].Name, vm[0].Namespace, err)
-			return nil, fmt.Errorf("error listing pcidevices by deviceName: %v", err)
-		}
-
-		if len(hostDevices) > 0 {
-			found = true
-			break
-		}
+	found, err = m.patchNeeded(vm[0])
+	if err != nil {
+		return nil, err
 	}
 
-	// if a PCIDevice is found then it does not matter if VGPU is present
-	// as the capability will be added anyways if not and GPU is present
-	// then SYS_RESOURCE capability is added
-	/* if !found {
-		for _, v := range vm[0].Spec.Template.Spec.Domain.Devices.GPUs {
-			vGPU, err := m.vGPUCache.Get(v.Name)
-			if err != nil {
-				logrus.Errorf("error listing pcidevices by deviceName for vm %s in ns %s: %v", vm[0].Name, vm[0].Namespace, err)
-				return nil, fmt.Errorf("error listing pcidevices by deviceName: %v", err)
-			}
-
-			if vGPU.Spec.Enabled {
-				found = true
-			}
-		}
-	}*/
-
-	if !found && len(vm[0].Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
-		found = true
+	// no devices found so no patch is needed
+	if !found {
+		return nil, nil
 	}
 
-	if found {
-		capPatchOptions, err := createCapabilityPatch(pod)
-		if err != nil {
-			logrus.Errorf("error creating capability patch for pod %s in ns %s %v", pod.Name, pod.Namespace, err)
-			return nil, fmt.Errorf("error creating capability patch: %v", err)
-		}
-
-		patchOps = append(patchOps, capPatchOptions...)
-	} else {
-		logrus.Infof("no device found in vm: %s, for matching pcidevices", vmName)
+	capPatchOptions, err := createCapabilityPatch(pod)
+	if err != nil {
+		logrus.Errorf("error creating capability patch for pod %s in ns %s %v", pod.Name, pod.Namespace, err)
+		return nil, fmt.Errorf("error creating capability patch: %v", err)
 	}
-
+	patchOps = append(patchOps, capPatchOptions...)
 	logrus.Debugf("patch generated %v, for pod %s in ns %s", patchOps, pod.Name, pod.Namespace)
 
 	return patchOps, nil
+}
+
+func (m *podMutator) patchNeeded(vm *kubevirtv1.VirtualMachine) (bool, error) {
+	if len(vm.Spec.Template.Spec.Domain.Devices.HostDevices) == 0 && len(vm.Spec.Template.Spec.Domain.Devices.GPUs) == 0 {
+		logrus.Infof("vm %s in ns %s has no device attachments, skipping", vm.Name, vm.Namespace)
+		return false, nil
+	}
+
+	for _, v := range vm.Spec.Template.Spec.Domain.Devices.HostDevices {
+		hostDevices, err := m.deviceCache.GetByIndex(PCIDeviceByResourceName, v.DeviceName)
+		if err != nil {
+			logrus.Errorf("error listing pcidevices by deviceName for vm %s in ns %s: %v", vm.Name, vm.Namespace, err)
+			return false, fmt.Errorf("error listing pcidevices by deviceName: %v", err)
+		}
+
+		if len(hostDevices) > 0 {
+			return true, nil
+		}
+	}
+
+	if len(vm.Spec.Template.Spec.Domain.Devices.GPUs) > 0 {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func createCapabilityPatch(pod *corev1.Pod) (types.PatchOps, error) {

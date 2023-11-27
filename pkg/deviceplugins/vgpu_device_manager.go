@@ -34,7 +34,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"kubevirt.io/client-go/log"
 	"kubevirt.io/kubevirt/pkg/util"
 	pluginapi "kubevirt.io/kubevirt/pkg/virt-handler/device-manager/deviceplugin/v1beta1"
 
@@ -128,7 +127,6 @@ func (dp *VGPUDevicePlugin) Stop() error {
 
 // Start starts the device plugin
 func (dp *VGPUDevicePlugin) Start(stop <-chan struct{}) (err error) {
-	logger := log.DefaultLogger()
 	dp.stop = stop
 	dp.done = make(chan struct{})
 	dp.deregistered = make(chan struct{})
@@ -164,7 +162,7 @@ func (dp *VGPUDevicePlugin) Start(stop <-chan struct{}) (err error) {
 	}
 
 	dp.setInitialized(true)
-	logger.Infof("Initialized DevicePlugin: %s", dp.resourceName)
+	logrus.Infof("Initialized DevicePlugin: %s", dp.resourceName)
 	dp.starter.started = true
 	err = <-errChan
 
@@ -208,7 +206,7 @@ func (dp *VGPUDevicePlugin) ListAndWatch(_ *pluginapi.Empty, s pluginapi.DeviceP
 	// Send empty list to increase the chance that the kubelet acts fast on stopped device plugins
 	// There exists no explicit way to deregister devices
 	if err := s.Send(&pluginapi.ListAndWatchResponse{Devices: emptyList}); err != nil {
-		log.DefaultLogger().Reason(err).Infof("%s device plugin failed to deregister: %s", dp.resourceName, err)
+		logrus.Errorf("%s device plugin failed to deregister: %s", dp.resourceName, err)
 	}
 	close(dp.deregistered)
 	return <-errChan
@@ -252,7 +250,6 @@ func (dp *VGPUDevicePlugin) Allocate(_ context.Context, r *pluginapi.AllocateReq
 }
 
 func (dp *VGPUDevicePlugin) healthCheck() error {
-	logger := log.DefaultLogger()
 	monitoredDevices := make(map[string]string)
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -306,6 +303,11 @@ func (dp *VGPUDevicePlugin) healthCheck() error {
 		return fmt.Errorf("failed to watch device-plugin socket: %v", err)
 	}
 
+	return dp.performCheck(monitoredDevices, watcher)
+}
+
+// performCheck performs checks and monitors the devices
+func (dp *VGPUDevicePlugin) performCheck(monitoredDevices map[string]string, watcher *fsnotify.Watcher) error {
 	// run initial health check for devices created before. This works around device restarts
 	// the device plugin runs out of band from the actual device enablement so the first device could be missed by the plugin
 	for monDevID, devPath := range monitoredDevices {
@@ -324,33 +326,31 @@ func (dp *VGPUDevicePlugin) healthCheck() error {
 		case <-dp.stop:
 			return nil
 		case err := <-watcher.Errors:
-			logger.Reason(err).Errorf("error watching devices and device plugin directory")
+			logrus.Errorf("error watching devices and device plugin directory: %v", err)
 		case event := <-watcher.Events:
-			logger.V(4).Infof("health Event: %v", event)
 			logrus.Infof("got event for device %s in plugin %s", event.Name, dp.resourceName)
 			if monDevID, exist := monitoredDevices[event.Name]; exist {
 				// Health in this case is if the device path actually exists
 				if event.Op == fsnotify.Create {
-					logger.Infof("monitored device %s appeared", dp.resourceName)
+					logrus.Debugf("monitored device %s appeared", dp.resourceName)
 					dp.health <- deviceHealth{
 						DevID:  monDevID,
 						Health: pluginapi.Healthy,
 					}
 				} else if (event.Op == fsnotify.Remove) || (event.Op == fsnotify.Rename) {
-					logger.Infof("monitored device %s disappeared", dp.resourceName)
+					logrus.Debugf("monitored device %s disappeared", dp.resourceName)
 					dp.health <- deviceHealth{
 						DevID:  monDevID,
 						Health: pluginapi.Unhealthy,
 					}
 				}
 			} else if event.Name == dp.socketPath && event.Op == fsnotify.Remove {
-				logger.Infof("device socket file for device %s was removed, kubelet probably restarted.", dp.resourceName)
+				logrus.Infof("device socket file for device %s was removed, kubelet probably restarted.", dp.resourceName)
 				return nil
 			}
 		}
 	}
 }
-
 func (dp *VGPUDevicePlugin) GetDevicePath() string {
 	return dp.devicePath
 }
