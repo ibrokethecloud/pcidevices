@@ -84,6 +84,7 @@ func Test_reconcileVGPUSetup(t *testing.T) {
 	vGPUDevices = append(vGPUDevices, foundPresentVGPU, newVGPU)
 	h := &Handler{
 		nodeName:            nodeName,
+		sriovGPUCache:       fakeclients.SriovGPUDevicesCache(client.DevicesV1beta1().SRIOVGPUDevices),
 		vGPUCache:           fakeclients.VGPUDeviceCache(client.DevicesV1beta1().VGPUDevices),
 		vGPUClient:          fakeclients.VGPUDeviceClient(client.DevicesV1beta1().VGPUDevices),
 		pciDeviceClaimCache: fakeclients.PCIDeviceClaimsCache(client.DevicesV1beta1().PCIDeviceClaims),

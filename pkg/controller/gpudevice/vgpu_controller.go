@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"sync"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	kubevirtv1 "kubevirt.io/api/core/v1"
@@ -77,9 +79,12 @@ func (h *Handler) reconcileVGPUSetup(vGPUDevices []*v1beta1.VGPUDevice) error {
 	for _, v := range vGPUDevices {
 		existingVGPU := containsVGPU(v, vGPUList)
 		if existingVGPU != nil {
-			if !reflect.DeepEqual(v.Spec, existingVGPU.Spec) {
-				existingVGPU.Spec = v.Spec
-				if _, err := h.vGPUClient.Update(existingVGPU); err != nil {
+			if !reflect.DeepEqual(v.Status, existingVGPU.Status) {
+				// on reboot the vGPU status will not match the state in CRD
+				// in which case we should if needed reset the vGPU status and
+				// allow reconcile to flow through
+				existingVGPU.Status = v.Status
+				if _, err := h.vGPUClient.UpdateStatus(existingVGPU); err != nil {
 					return err
 				}
 			}
@@ -91,7 +96,15 @@ func (h *Handler) reconcileVGPUSetup(vGPUDevices []*v1beta1.VGPUDevice) error {
 	}
 
 	for _, v := range vGPUList {
-		if vGPUExists := containsVGPU(v, vGPUDevices); vGPUExists == nil {
+		parentDeviceEnabled, err := h.isParentGPUEnabled(v.Spec.ParentGPUDeviceAddress)
+		if err != nil {
+			return err
+		}
+
+		// if parentDevice is enabled, then skip deletion
+		// as controller will reconcile and re-configure vGPU when device parent SRIOVGPU device
+		// is reconfigured post reboot
+		if vGPUExists := containsVGPU(v, vGPUDevices); !parentDeviceEnabled && vGPUExists == nil {
 			if err := h.vGPUClient.Delete(v.Name, &metav1.DeleteOptions{}); err != nil {
 				return err
 			}
@@ -99,6 +112,7 @@ func (h *Handler) reconcileVGPUSetup(vGPUDevices []*v1beta1.VGPUDevice) error {
 	}
 	return nil
 }
+
 func containsVGPU(vgpu *v1beta1.VGPUDevice, vgpuList []*v1beta1.VGPUDevice) *v1beta1.VGPUDevice {
 	for _, v := range vgpuList {
 		if vgpu.Name == v.Name {
@@ -209,7 +223,15 @@ func (h *Handler) reconcileEnabledVGPUPlugins(_ string, vgpu *v1beta1.VGPUDevice
 		return vgpu, nil
 	}
 
-	if vgpu.Spec.Enabled && vgpu.Status.UUID != "" && vgpu.Status.ConfiguredVGPUTypeName != "" {
+	// post reboot the vgpu devices are cleared from /sys
+	// as a result we need to wait until the device exists in /sys/bus/mdev/devices
+	// else fake devices get added to the node
+
+	discoveredVGPUStatus, err := gpuhelper.FetchVGPUStatus(v1beta1.MdevRoot, v1beta1.SysDevRoot, v1beta1.MdevBusClassRoot, vgpu.Spec.Address)
+	if err != nil {
+		return vgpu, err
+	}
+	if vgpu.Spec.Enabled && discoveredVGPUStatus.UUID != "" && discoveredVGPUStatus.ConfiguredVGPUTypeName != "" {
 		return vgpu, h.createOrUpdateDevicePlugin(vgpu)
 	}
 
@@ -229,7 +251,7 @@ func (h *Handler) createOrUpdateDevicePlugin(vgpu *v1beta1.VGPUDevice) error {
 	if ok {
 		// plugin exists. just publish address and move on
 		if !plugin.DeviceExists(vgpu.Status.UUID) {
-			plugin.AddDevice(vgpu.Status.UUID)
+			return plugin.AddDevice(vgpu.Status.UUID)
 		}
 		return nil
 	}
@@ -316,4 +338,20 @@ func (h *Handler) reconcileDisabledVGPUStatus(vgpu *v1beta1.VGPUDevice) (*v1beta
 		h.vGPUController.Enqueue(v.Name)
 	}
 	return vgpu, nil
+}
+
+// isParentGPUEnabled checks if parentGPU is needed. This is need during reconcile of vGPU's post a reboot
+// as it can take a while for GPU to be re-enabled post reboot, while node reconcile could end up deleting
+// vGPU devices. This avoids deletion of said vGPU devices during node object reconcile
+func (h *Handler) isParentGPUEnabled(gpuAddress string) (bool, error) {
+	parentSRIOVGPUDeviceName := v1beta1.PCIDeviceNameForHostname(gpuAddress, h.nodeName)
+	parentSRIOVGPUDevice, err := h.sriovGPUCache.Get(parentSRIOVGPUDeviceName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return parentSRIOVGPUDevice.Spec.Enabled, nil
 }
