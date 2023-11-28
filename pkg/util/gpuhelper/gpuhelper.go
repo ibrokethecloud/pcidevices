@@ -207,6 +207,13 @@ func fetchAvailableTypes(managedBusPath string, deviceAddress string) (map[strin
 
 func FetchVGPUStatus(mdevRoot string, pciDeviceRoot string, managedBusPath string, deviceAddress string) (*v1beta1.VGPUDeviceStatus, error) {
 	var uuid, deviceType string
+
+	// on node reboot mdevRoot will not exist as a result the walk will fail.
+	// we need to return an empty status to allow vgpu config to be re-run
+	if _, err := os.Stat(mdevRoot); os.IsNotExist(err) {
+		return &v1beta1.VGPUDeviceStatus{}, nil
+	}
+
 	err := filepath.WalkDir(mdevRoot, func(path string, d fs.DirEntry, err error) error {
 		logrus.Debugf("checking path %s", path)
 		if err != nil {

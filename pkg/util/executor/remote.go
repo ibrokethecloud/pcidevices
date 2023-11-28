@@ -102,3 +102,7 @@ func fetchPod(ctx context.Context, client *kubernetes.Clientset, nodeName string
 
 	return &matchingPods[0], nil
 }
+
+func (r *RemoteCommandExecutor) CheckReady() ([]byte, error) {
+	return r.Run("/usr/bin/file", []string{"/tmp/ready"})
+}

@@ -194,7 +194,14 @@ func (h *Handler) manageGPU(gpu *v1beta1.SRIOVGPUDevice) (*v1beta1.SRIOVGPUDevic
 	} else {
 		args = append(args, "-d", gpu.Spec.Address)
 	}
-	output, err := h.executor.Run(sriovManageCommand, args)
+
+	output, err := h.executor.CheckReady()
+	if err != nil {
+		logrus.Error(string(output))
+		return gpu, fmt.Errorf("error during readiness check: %v", err)
+	}
+
+	output, err = h.executor.Run(sriovManageCommand, args)
 	if err != nil {
 		logrus.Error(string(output))
 		return gpu, fmt.Errorf("error performing sriovmanage operation: %v", err)
