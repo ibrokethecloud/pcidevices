@@ -76,8 +76,6 @@ func (dp *VGPUDevicePlugin) GetCount() int {
 func NewVGPUDevicePlugin(ctx context.Context, vGPUList []string, resourceName string) *VGPUDevicePlugin {
 	serverSock := SocketPath(strings.Replace(resourceName, "/", "-", -1))
 
-	initHandler()
-
 	devs := constructVGPUDPIdevices(vGPUList)
 	dpi := &VGPUDevicePlugin{
 		devs:         devs,
@@ -351,9 +349,6 @@ func (dp *VGPUDevicePlugin) performCheck(monitoredDevices map[string]string, wat
 		}
 	}
 }
-func (dp *VGPUDevicePlugin) GetDevicePath() string {
-	return dp.devicePath
-}
 
 func (dp *VGPUDevicePlugin) GetDeviceName() string {
 	return dp.resourceName
@@ -420,12 +415,6 @@ func (dp *VGPUDevicePlugin) GetDevicePluginOptions(_ context.Context, _ *plugina
 func (dp *VGPUDevicePlugin) PreStartContainer(_ context.Context, _ *pluginapi.PreStartContainerRequest) (*pluginapi.PreStartContainerResponse, error) {
 	res := &pluginapi.PreStartContainerResponse{}
 	return res, nil
-}
-
-func (dp *VGPUDevicePlugin) GetInitialized() bool {
-	dp.lock.Lock()
-	defer dp.lock.Unlock()
-	return dp.initialized
 }
 
 func (dp *VGPUDevicePlugin) setInitialized(initialized bool) {

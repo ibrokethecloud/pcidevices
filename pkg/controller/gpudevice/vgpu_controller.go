@@ -153,19 +153,19 @@ func (h *Handler) enableVGPU(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, err
 // disableVGPU performs the op to disable VGPU
 func (h *Handler) disableVGPU(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, error) {
 	removeFile := filepath.Join(v1beta1.MdevBusClassRoot, vgpu.Spec.Address, vgpu.Status.UUID, "remove")
-	var notFound bool
+	found := true
 	// possible that CRD update fails but file has been removed
 	// this can lead to issue during reconcile.
 	// in such a case we just ensure plugin is updated and CRD status reflects disabled state
 	if _, err := os.Stat(removeFile); err != nil {
 		if os.IsNotExist(err) {
-			notFound = true
+			found = false
 		} else {
 			return vgpu, fmt.Errorf("error looking up remove file for vgpu %s: %v", vgpu.Name, err)
 		}
 	}
 
-	if !notFound {
+	if found {
 		if err := os.WriteFile(removeFile, []byte("1"), fs.FileMode(os.O_WRONLY)); err != nil {
 			return vgpu, fmt.Errorf("error writing to remove file for vgpu %s: %v", vgpu.Name, err)
 		}
@@ -185,10 +185,6 @@ func (h *Handler) disableVGPU(vgpu *v1beta1.VGPUDevice) (*v1beta1.VGPUDevice, er
 	}
 
 	return h.reconcileDisabledVGPUStatus(vgpuObj)
-}
-
-func (h *Handler) patchKubevirtCR() error {
-	return nil
 }
 
 func (h *Handler) disableDevicePlugin(vgpu *v1beta1.VGPUDevice) error {
