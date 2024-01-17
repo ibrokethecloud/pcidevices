@@ -170,7 +170,7 @@ func resourcePatch(add []corev1.Capability, basePath string) (types.PatchOps, er
 		basePath = basePath + "/-"
 	}
 
-	value := append(add, "SYS_ADMIN")
+	value := append(add, "SYS_RESOURCE")
 	valueStr, err := json.Marshal(value)
 	if err != nil {
 		return nil, err
