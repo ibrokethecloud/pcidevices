@@ -23,6 +23,7 @@ func NewLocalExecutor(envVars []string) Executor {
 const (
 	localExecutorPrefix = "/host"
 	sriovManageCommand  = "/usr/lib/nvidia/sriov-manage"
+	fileCommand         = "/usr/bin/file"
 )
 
 func (l *LocalExecutor) Run(cmd string, args []string) ([]byte, error) {
@@ -35,5 +36,5 @@ func (l *LocalExecutor) Run(cmd string, args []string) ([]byte, error) {
 
 // CheckReady checks if /host/usr/lib/nvidia/sriov-manage exists
 func (l *LocalExecutor) CheckReady() ([]byte, error) {
-	return l.Run(filepath.Join(localExecutorPrefix, "/usr/bin/file"), []string{filepath.Join(localExecutorPrefix, sriovManageCommand)})
+	return l.Run(fileCommand, []string{filepath.Join(localExecutorPrefix, sriovManageCommand)})
 }

@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	VMLabel = "harvesterhci.io/vmName"
+	VMLabel                     = "harvesterhci.io/vmName"
+	defaultComputeContainerName = "compute"
 )
 
 var matchingLabels = []labels.Set{
@@ -150,11 +151,14 @@ func (m *podMutator) patchNeeded(vm *kubevirtv1.VirtualMachine) (bool, error) {
 func createCapabilityPatch(pod *corev1.Pod) (types.PatchOps, error) {
 	var patchOps types.PatchOps
 	for idx, container := range pod.Spec.Containers {
-		addPatch, err := resourcePatch(container.SecurityContext.Capabilities.Add, fmt.Sprintf("/spec/containers/%d/securityContext/capabilities/add", idx))
-		if err != nil {
-			return nil, err
+		if container.Name == defaultComputeContainerName {
+
+			addPatch, err := resourcePatch(container.SecurityContext.Capabilities.Add, fmt.Sprintf("/spec/containers/%d/securityContext/capabilities/add", idx))
+			if err != nil {
+				return nil, err
+			}
+			patchOps = append(patchOps, addPatch...)
 		}
-		patchOps = append(patchOps, addPatch...)
 	}
 
 	return patchOps, nil
@@ -166,7 +170,7 @@ func resourcePatch(add []corev1.Capability, basePath string) (types.PatchOps, er
 		basePath = basePath + "/-"
 	}
 
-	value := append(add, "SYS_RESOURCE")
+	value := append(add, "SYS_ADMIN")
 	valueStr, err := json.Marshal(value)
 	if err != nil {
 		return nil, err

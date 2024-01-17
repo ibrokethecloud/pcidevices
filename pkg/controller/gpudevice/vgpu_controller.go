@@ -228,7 +228,9 @@ func (h *Handler) reconcileEnabledVGPUPlugins(_ string, vgpu *v1beta1.VGPUDevice
 		return vgpu, err
 	}
 	if vgpu.Spec.Enabled && discoveredVGPUStatus.UUID != "" && discoveredVGPUStatus.ConfiguredVGPUTypeName != "" {
-		return vgpu, h.createOrUpdateDevicePlugin(vgpu)
+		vgpuCopy := vgpu.DeepCopy()
+		vgpuCopy.Status.ConfiguredVGPUTypeName = discoveredVGPUStatus.ConfiguredVGPUTypeName
+		return vgpu, h.createOrUpdateDevicePlugin(vgpuCopy)
 	}
 
 	return vgpu, nil
