@@ -356,14 +356,13 @@ func (dp *VGPUDevicePlugin) GetDeviceName() string {
 
 // Stop stops the gRPC server
 func (dp *VGPUDevicePlugin) stopDevicePlugin() error {
-	defer func() {
-		if !IsChanClosed(dp.done) {
-			close(dp.done)
-		}
-	}()
 
-	// Give the device plugin one second to properly deregister
-	ticker := time.NewTicker(1 * time.Second)
+	if !IsChanClosed(dp.done) {
+		close(dp.done)
+	}
+
+	// Give the device plugin 5 seconds to properly deregister
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	select {
 	case <-dp.deregistered:
