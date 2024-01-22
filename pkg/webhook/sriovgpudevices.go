@@ -37,7 +37,7 @@ func (v *sriovGPUValidator) Resource() types.Resource {
 	}
 }
 
-func (v *sriovGPUValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *sriovGPUValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldGPUObj := oldObj.(*devicesv1beta1.SRIOVGPUDevice)
 	newGPUObj := newObj.(*devicesv1beta1.SRIOVGPUDevice)
 
@@ -53,7 +53,7 @@ func (v *sriovGPUValidator) Update(request *types.Request, oldObj runtime.Object
 	return nil
 }
 
-func (v *sriovGPUValidator) Delete(request *types.Request, obj runtime.Object) error {
+func (v *sriovGPUValidator) Delete(_ *types.Request, obj runtime.Object) error {
 	gpuObj := obj.(*devicesv1beta1.SRIOVGPUDevice)
 	if gpuObj.Spec.Enabled {
 		return fmt.Errorf("please disable gpuDevice %s before deletion", gpuObj.Name)

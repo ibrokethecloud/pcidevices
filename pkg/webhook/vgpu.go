@@ -39,7 +39,7 @@ func (v *vgpuValidator) Resource() types.Resource {
 	}
 }
 
-func (v *vgpuValidator) Update(request *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
+func (v *vgpuValidator) Update(_ *types.Request, oldObj runtime.Object, newObj runtime.Object) error {
 	oldVGPUObj := oldObj.(*devicesv1beta1.VGPUDevice)
 	newVGPUObj := newObj.(*devicesv1beta1.VGPUDevice)
 
@@ -55,7 +55,7 @@ func (v *vgpuValidator) Update(request *types.Request, oldObj runtime.Object, ne
 	return nil
 }
 
-func (v *vgpuValidator) Delete(request *types.Request, obj runtime.Object) error {
+func (v *vgpuValidator) Delete(_ *types.Request, obj runtime.Object) error {
 	vGPUObj := obj.(*devicesv1beta1.VGPUDevice)
 	return checkVGPUUsage(v.kubevirtCache, vGPUObj.Name)
 }

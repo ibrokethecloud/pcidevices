@@ -19,7 +19,7 @@ func (s VGPUDeviceClient) Update(d *pcidevicev1beta1.VGPUDevice) (*pcidevicev1be
 	return s().Update(context.TODO(), d, metav1.UpdateOptions{})
 }
 
-func (s VGPUDeviceClient) Get(name string, options metav1.GetOptions) (*pcidevicev1beta1.VGPUDevice, error) {
+func (s VGPUDeviceClient) Get(name string, _ metav1.GetOptions) (*pcidevicev1beta1.VGPUDevice, error) {
 	return s().Get(context.TODO(), name, metav1.GetOptions{})
 }
 
@@ -35,11 +35,11 @@ func (s VGPUDeviceClient) List(opts metav1.ListOptions) (*pcidevicev1beta1.VGPUD
 	return s().List(context.TODO(), opts)
 }
 
-func (s VGPUDeviceClient) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (s VGPUDeviceClient) Watch(_ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
 
-func (s VGPUDeviceClient) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *pcidevicev1beta1.VGPUDevice, err error) {
+func (s VGPUDeviceClient) Patch(_ string, _ types.PatchType, _ []byte, _ ...string) (result *pcidevicev1beta1.VGPUDevice, err error) {
 	panic("implement me")
 }
 
@@ -68,10 +68,10 @@ func (s VGPUDeviceCache) List(selector labels.Selector) ([]*pcidevicev1beta1.VGP
 	return result, err
 }
 
-func (s VGPUDeviceCache) AddIndexer(indexName string, indexer pcidevicesv1beta1ctl.VGPUDeviceIndexer) {
+func (s VGPUDeviceCache) AddIndexer(_ string, _ pcidevicesv1beta1ctl.VGPUDeviceIndexer) {
 	panic("implement me")
 }
 
-func (s VGPUDeviceCache) GetByIndex(indexName, key string) ([]*pcidevicev1beta1.VGPUDevice, error) {
+func (s VGPUDeviceCache) GetByIndex(_, _ string) ([]*pcidevicev1beta1.VGPUDevice, error) {
 	panic("implement me")
 }

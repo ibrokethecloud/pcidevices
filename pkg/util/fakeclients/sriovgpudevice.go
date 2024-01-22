@@ -19,7 +19,7 @@ func (s SriovGPUDevicesClient) Update(d *pcidevicev1beta1.SRIOVGPUDevice) (*pcid
 	return s().Update(context.TODO(), d, metav1.UpdateOptions{})
 }
 
-func (s SriovGPUDevicesClient) Get(name string, options metav1.GetOptions) (*pcidevicev1beta1.SRIOVGPUDevice, error) {
+func (s SriovGPUDevicesClient) Get(name string, _ metav1.GetOptions) (*pcidevicev1beta1.SRIOVGPUDevice, error) {
 	return s().Get(context.TODO(), name, metav1.GetOptions{})
 }
 
@@ -35,11 +35,11 @@ func (s SriovGPUDevicesClient) List(opts metav1.ListOptions) (*pcidevicev1beta1.
 	return s().List(context.TODO(), opts)
 }
 
-func (s SriovGPUDevicesClient) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (s SriovGPUDevicesClient) Watch(_ metav1.ListOptions) (watch.Interface, error) {
 	panic("implement me")
 }
 
-func (s SriovGPUDevicesClient) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *pcidevicev1beta1.SRIOVGPUDevice, err error) {
+func (s SriovGPUDevicesClient) Patch(_ string, _ types.PatchType, _ []byte, _ ...string) (result *pcidevicev1beta1.SRIOVGPUDevice, err error) {
 	panic("implement me")
 }
 
@@ -68,10 +68,10 @@ func (s SriovGPUDevicesCache) List(selector labels.Selector) ([]*pcidevicev1beta
 	return result, err
 }
 
-func (s SriovGPUDevicesCache) AddIndexer(indexName string, indexer pcidevicesv1beta1ctl.SRIOVGPUDeviceIndexer) {
+func (s SriovGPUDevicesCache) AddIndexer(_ string, _ pcidevicesv1beta1ctl.SRIOVGPUDeviceIndexer) {
 	panic("implement me")
 }
 
-func (s SriovGPUDevicesCache) GetByIndex(indexName, key string) ([]*pcidevicev1beta1.SRIOVGPUDevice, error) {
+func (s SriovGPUDevicesCache) GetByIndex(_, _ string) ([]*pcidevicev1beta1.SRIOVGPUDevice, error) {
 	panic("implement me")
 }
