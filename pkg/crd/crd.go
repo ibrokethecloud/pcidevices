@@ -131,10 +131,10 @@ func List() []crd.CRD {
 			return c.
 				WithColumn("Vendor ID", ".status.vendorID").
 				WithColumn("Product ID", ".status.productID").
-				WithColumn("Node Name", ".status.nodeName").
+				WithColumn("Node Name", ".spec.nodeName").
 				WithColumn("Description", ".status.description").
-				WithColumn("Resource Name", ".status.resourceName").
-				WithColumn("PCI Address", ".status.pciAddress").
+				WithColumn("Resource Name", ".spec.resourceName").
+				WithColumn("PCI Address", ".spec.pciAddress").
 				WithColumn("Enabled", ".status.enabled")
 		}),
 		newCRD(&devices.USBDeviceClaim{}, func(c crd.CRD) crd.CRD {

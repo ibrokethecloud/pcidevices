@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	v1 "kubevirt.io/api/core/v1"
@@ -40,6 +39,8 @@ import (
 	"kubevirt.io/kubevirt/pkg/safepath"
 	"kubevirt.io/kubevirt/pkg/util"
 	pluginapi "kubevirt.io/kubevirt/pkg/virt-handler/device-manager/deviceplugin/v1beta1"
+
+	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 )
 
 var (

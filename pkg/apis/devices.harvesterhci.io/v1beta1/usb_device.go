@@ -10,7 +10,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type USBDevice struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              USBDeviceSpec   `json:"usbDeviceSpec`
+	Spec              USBDeviceSpec   `json:"spec"`
 	Status            USBDeviceStatus `json:"status,omitempty"`
 }
 

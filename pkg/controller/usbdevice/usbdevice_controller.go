@@ -118,13 +118,8 @@ func (h *DevHandler) ReconcileUSBDevices() error {
 
 func (h *DevHandler) handleList(createList []*v1beta1.USBDevice, updateList []*v1beta1.USBDevice, mapStoredUSBDevices map[string]*v1beta1.USBDevice) error {
 	for _, usbDevice := range createList {
-		createdOne := &v1beta1.USBDevice{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:   usbDevice.Name,
-				Labels: usbDevice.Labels,
-			},
-		}
-
+		createdOne := usbDevice
+		logrus.Infof("creating device %v", *createdOne)
 		newOne, err := h.usbClient.Create(createdOne)
 		if err != nil {
 			logrus.Errorf("failed to create USB device: %v\n", err)

@@ -10,7 +10,6 @@ import (
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
-	"github.com/harvester/pcidevices/pkg/deviceplugins"
 	"github.com/harvester/pcidevices/pkg/generated/clientset/versioned/fake"
 	"github.com/harvester/pcidevices/pkg/util/fakeclients"
 )
@@ -68,9 +67,6 @@ var (
 		Status: v1beta1.USBDeviceClaimStatus{
 			NodeName: "test-node",
 		},
-	}
-	mockUSBDevicePluginHelper = func(_ string, _ []*deviceplugins.PluginDevices) deviceplugins.USBDevicePluginInterface {
-		return &mockUSBDevicePlugin{}
 	}
 )
 

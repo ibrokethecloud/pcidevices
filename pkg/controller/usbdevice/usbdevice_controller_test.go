@@ -54,9 +54,9 @@ func Test_ReconcileUSBDevices(t *testing.T) {
 	assert.Equal(t, "test-node-0951-1666-001002", list.Items[0].Name)
 	assert.Equal(t, "0951", list.Items[0].Status.VendorID)
 	assert.Equal(t, "1666", list.Items[0].Status.ProductID)
-	assert.Equal(t, "kubevirt.io/test-node-0951-1666-001002", list.Items[0].Status.ResourceName)
-	assert.Equal(t, "/dev/bus/usb/001/002", list.Items[0].Status.DevicePath)
-	assert.Equal(t, cl.nodeName, list.Items[0].Status.NodeName)
+	assert.Equal(t, "kubevirt.io/test-node-0951-1666-001002", list.Items[0].Spec.ResourceName)
+	assert.Equal(t, "/dev/bus/usb/001/002", list.Items[0].Spec.DevicePath)
+	assert.Equal(t, cl.nodeName, list.Items[0].Spec.NodeName)
 	assert.Equal(t, "DataTraveler 100 G3/G4/SE9 G2/50 Kyson (Kingston Technology)", list.Items[0].Status.Description)
 
 	// detect no usb device after few minutes, delete existing USBDevice CR

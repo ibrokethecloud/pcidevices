@@ -385,16 +385,16 @@ spec:
     - jsonPath: .status.productID
       name: Product ID
       type: string
-    - jsonPath: .status.nodeName
+    - jsonPath: .spec.nodeName
       name: Node Name
       type: string
     - jsonPath: .status.description
       name: Description
       type: string
-    - jsonPath: .status.resourceName
+    - jsonPath: .spec.resourceName
       name: Resource Name
       type: string
-    - jsonPath: .status.pciAddress
+    - jsonPath: .spec.pciAddress
       name: PCI Address
       type: string
     - jsonPath: .status.enabled
@@ -870,16 +870,16 @@ spec:
   - JSONPath: .status.productID
     name: Product ID
     type: string
-  - JSONPath: .status.nodeName
+  - JSONPath: .spec.nodeName
     name: Node Name
     type: string
   - JSONPath: .status.description
     name: Description
     type: string
-  - JSONPath: .status.resourceName
+  - JSONPath: .spec.resourceName
     name: Resource Name
     type: string
-  - JSONPath: .status.pciAddress
+  - JSONPath: .spec.pciAddress
     name: PCI Address
     type: string
   - JSONPath: .status.enabled
