@@ -3,10 +3,11 @@ package webhook
 import (
 	"testing"
 
-	harvesterfake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+
+	harvesterfake "github.com/harvester/harvester/pkg/generated/clientset/versioned/fake"
 
 	devicesv1beta1 "github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 	"github.com/harvester/pcidevices/pkg/util/fakeclients"
@@ -17,12 +18,16 @@ var (
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "usbdevice1",
 		},
-		Status: devicesv1beta1.USBDeviceStatus{
+		Spec: devicesv1beta1.USBDeviceSpec{
 			NodeName:     "node1",
 			ResourceName: "fake.com/device1",
-			VendorID:     "8086",
-			ProductID:    "1166",
 			DevicePath:   "/dev/bus/002/001",
+			PCIAddress:   "0000:00:01.0",
+		},
+		Status: devicesv1beta1.USBDeviceStatus{
+
+			VendorID:  "8086",
+			ProductID: "1166",
 		},
 	}
 
@@ -45,7 +50,7 @@ var (
 							HostDevices: []kubevirtv1.HostDevice{
 								{
 									Name:       usbdevice1.Name,
-									DeviceName: usbdevice1.Status.ResourceName,
+									DeviceName: usbdevice1.Spec.ResourceName,
 								},
 							},
 						},

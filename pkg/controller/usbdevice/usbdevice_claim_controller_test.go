@@ -32,13 +32,16 @@ var (
 				"nodename": "test-node",
 			},
 		},
-		Status: v1beta1.USBDeviceStatus{
-			VendorID:     "0951",
-			ProductID:    "1666",
+		Spec: v1beta1.USBDeviceSpec{
 			ResourceName: "kubevirt.io/test-node-0951-1666-001002",
 			DevicePath:   "/dev/bus/usb/001/002",
 			NodeName:     "test-node",
-			Description:  "DataTraveler 100 G3/G4/SE9 G2/50 Kyson (Kingston Technology)",
+			PCIAddress:   "0000:01:00:0",
+		},
+		Status: v1beta1.USBDeviceStatus{
+			VendorID:    "0951",
+			ProductID:   "1666",
+			Description: "DataTraveler 100 G3/G4/SE9 G2/50 Kyson (Kingston Technology)",
 		},
 	}
 
@@ -85,9 +88,6 @@ func Test_OnUSBDeviceClaimChanged(t *testing.T) {
 					fakeclients.USBDeviceClaimsClient(client.DevicesV1beta1().USBDeviceClaims),
 					fakeclients.USBDevicesClient(client.DevicesV1beta1().USBDevices),
 					fakeclients.KubeVirtClient(client.KubevirtV1().KubeVirts),
-					func(_ string, _ []*deviceplugins.PluginDevices) deviceplugins.USBDevicePluginInterface {
-						return mockObj
-					},
 				)
 
 				// Test claim created
@@ -146,9 +146,6 @@ func Test_OnUSBDeviceClaimChanged(t *testing.T) {
 					fakeclients.USBDeviceClaimsClient(client.DevicesV1beta1().USBDeviceClaims),
 					fakeclients.USBDevicesClient(client.DevicesV1beta1().USBDevices),
 					fakeclients.KubeVirtClient(client.KubevirtV1().KubeVirts),
-					func(_ string, _ []*deviceplugins.PluginDevices) deviceplugins.USBDevicePluginInterface {
-						return mockObj
-					},
 				)
 
 				// Test claim created
@@ -169,7 +166,6 @@ func Test_OnUSBDeviceClaimChanged(t *testing.T) {
 					fakeclients.USBDeviceClaimsClient(client.DevicesV1beta1().USBDeviceClaims),
 					fakeclients.USBDevicesClient(client.DevicesV1beta1().USBDevices),
 					fakeclients.KubeVirtClient(client.KubevirtV1().KubeVirts),
-					mockUSBDevicePluginHelper,
 				)
 
 				// Test claim created
@@ -190,22 +186,5 @@ func Test_OnUSBDeviceClaimChanged(t *testing.T) {
 
 func generateClient() *fake.Clientset {
 	client := fake.NewSimpleClientset(mockUsbDevice1, mockUsbDeviceClaim1, mockKubeVirt)
-	discoverAllowedUSBDevices = func(_ []kubevirtv1.USBHostDevice) map[string][]*deviceplugins.PluginDevices {
-		m := map[string][]*deviceplugins.PluginDevices{}
-		m[mockUsbDevice1.Status.ResourceName] = []*deviceplugins.PluginDevices{
-			{
-				ID: "test",
-				Devices: []*deviceplugins.USBDevice{
-					{
-						Vendor:     2385,
-						Product:    5734,
-						DevicePath: "/dev/bus/usb/001/002",
-					},
-				},
-			},
-		}
-		return m
-	}
-
 	return client
 }

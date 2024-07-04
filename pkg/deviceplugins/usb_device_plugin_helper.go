@@ -180,29 +180,3 @@ func parseSelector(s *v1.USBSelector) (int, int, error) {
 
 	return vendor, product, nil
 }
-
-func DiscoverAllowedUSBDevices(usbs []v1.USBHostDevice) map[string][]*PluginDevices {
-	// The return value: USB USBDevice Plugins found and permitted to be exposed
-	plugins := make(map[string][]*PluginDevices)
-	// All USB devices found plugged in the Node
-	localDevices := discoverLocalUSBDevicesFunc()
-	for _, usbConfig := range usbs {
-		resourceName := usbConfig.ResourceName
-		// only accept ExternalResourceProvider: true for USB devices
-		if !usbConfig.ExternalResourceProvider {
-			logrus.Errorf("Skipping discovery of %s. To be handled by kubevirt internally",
-				resourceName)
-			continue
-		}
-		index := 0
-		usbdevs, foundAll := localDevices.fetch(usbConfig.Selectors)
-		for foundAll {
-			// Create new USB USBDevice Plugin with found USB Devices for this resource name
-			pluginDevices := newPluginDevices(resourceName, index, usbdevs)
-			plugins[resourceName] = append(plugins[resourceName], pluginDevices)
-			index++
-			usbdevs, foundAll = localDevices.fetch(usbConfig.Selectors)
-		}
-	}
-	return plugins
-}

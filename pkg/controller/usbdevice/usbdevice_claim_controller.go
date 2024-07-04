@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,43 +16,28 @@ import (
 	ctlkubevirtv1 "github.com/harvester/pcidevices/pkg/generated/controllers/kubevirt.io/v1"
 )
 
-var (
-	discoverAllowedUSBDevices = deviceplugins.DiscoverAllowedUSBDevices
-)
-
 type DevClaimHandler struct {
-	usbClaimClient        ctldevicerv1beta1.USBDeviceClaimClient
-	usbClient             ctldevicerv1beta1.USBDeviceClient
-	virtClient            ctlkubevirtv1.KubeVirtClient
-	lock                  *sync.Mutex
-	usbDeviceCache        ctldevicerv1beta1.USBDeviceCache
-	devicePlugin          map[string]*deviceController
-	devicePluginConvertor devicePluginConvertor
+	usbClaimClient       ctldevicerv1beta1.USBDeviceClaimClient
+	usbClient            ctldevicerv1beta1.USBDeviceClient
+	virtClient           ctlkubevirtv1.KubeVirtClient
+	lock                 *sync.Mutex
+	usbDeviceCache       ctldevicerv1beta1.USBDeviceCache
+	managedDevicePlugins map[string]*deviceplugins.USBDevicePlugin
 }
-
-type deviceController struct {
-	device  deviceplugins.USBDevicePluginInterface
-	stop    chan struct{}
-	started bool
-}
-
-type devicePluginConvertor func(resourceName string, devices []*deviceplugins.PluginDevices) deviceplugins.USBDevicePluginInterface
 
 func NewClaimHandler(
 	usbDeviceCache ctldevicerv1beta1.USBDeviceCache,
 	usbClaimClient ctldevicerv1beta1.USBDeviceClaimClient,
 	usbClient ctldevicerv1beta1.USBDeviceClient,
 	virtClient ctlkubevirtv1.KubeVirtClient,
-	devicePluginHelper devicePluginConvertor,
 ) *DevClaimHandler {
 	return &DevClaimHandler{
-		usbDeviceCache:        usbDeviceCache,
-		usbClaimClient:        usbClaimClient,
-		usbClient:             usbClient,
-		virtClient:            virtClient,
-		lock:                  &sync.Mutex{},
-		devicePlugin:          map[string]*deviceController{},
-		devicePluginConvertor: devicePluginHelper,
+		usbDeviceCache:       usbDeviceCache,
+		usbClaimClient:       usbClaimClient,
+		usbClient:            usbClient,
+		virtClient:           virtClient,
+		lock:                 &sync.Mutex{},
+		managedDevicePlugins: make(map[string]*deviceplugins.USBDevicePlugin),
 	}
 }
 
@@ -86,29 +70,27 @@ func (h *DevClaimHandler) OnUSBDeviceClaimChanged(_ string, usbDeviceClaim *v1be
 		return usbDeviceClaim, err
 	}
 
-	newVirt, err := h.updateKubeVirt(virt, usbDevice)
+	// update kubevirt CR to ensure the usb device state on host matches the kubevirt description
+	_, err = h.updateKubeVirt(virt, usbDevice)
 	if err != nil {
 		logrus.Errorf("failed to update kubevirt: %v", err)
 		return usbDeviceClaim, err
 	}
 
-	// start device plugin if it's not started yet.
-	if _, ok := h.devicePlugin[usbDeviceClaim.Name]; !ok {
-		pluginDevices := discoverAllowedUSBDevices(newVirt.Spec.Configuration.PermittedHostDevices.USB)
+	devicePlugin, ok := h.managedDevicePlugins[usbDeviceClaim.Name]
 
-		if pluginDevice := h.findDevicePlugin(pluginDevices, usbDevice); pluginDevice != nil {
-			usbDevicePlugin := h.devicePluginConvertor(usbDevice.Status.ResourceName, []*deviceplugins.PluginDevices{pluginDevice})
-			deviceHan := &deviceController{
-				device: usbDevicePlugin,
-			}
-			h.devicePlugin[usbDeviceClaim.Name] = deviceHan
-			h.startDevicePlugin(deviceHan, usbDeviceClaim.Name)
-		} else {
-			logrus.Errorf("failed to find device plugin for usb device %s", usbDevice.Name)
-			return usbDeviceClaim, err
-		}
+	// if plugin exists check if it is started
+	// and start it if needed
+	if !ok {
+		devicePlugin = deviceplugins.NewUSBDevicePlugin(*usbDevice)
+		h.managedDevicePlugins[usbDeviceClaim.Name] = devicePlugin
 	}
 
+	if !devicePlugin.GetInitialized() {
+		devicePlugin.StartDevicePlugin()
+	}
+
+	// update usbDeviceStatus to reflect correct status
 	if !usbDevice.Status.Enabled {
 		usbDeviceCp := usbDevice.DeepCopy()
 		usbDeviceCp.Status.Enabled = true
@@ -120,65 +102,10 @@ func (h *DevClaimHandler) OnUSBDeviceClaimChanged(_ string, usbDeviceClaim *v1be
 
 	// just sync usb device pci address to usb device claim
 	usbDeviceClaimCp := usbDeviceClaim.DeepCopy()
-	usbDeviceClaimCp.Status.PCIAddress = usbDevice.Status.PCIAddress
-	usbDeviceClaimCp.Status.NodeName = usbDevice.Status.NodeName
+	usbDeviceClaimCp.Status.PCIAddress = usbDevice.Spec.PCIAddress
+	usbDeviceClaimCp.Status.NodeName = usbDevice.Spec.NodeName
 
 	return h.usbClaimClient.UpdateStatus(usbDeviceClaimCp)
-}
-
-func (h *DevClaimHandler) startDevicePlugin(deviceHan *deviceController, deviceName string) {
-	if deviceHan.started {
-		return
-	}
-
-	deviceHan.stop = make(chan struct{})
-
-	go func() {
-		for {
-			// This will be blocked by a channel read inside function
-			if err := deviceHan.device.Start(deviceHan.stop); err != nil {
-				logrus.Errorf("Error starting %s device plugin", deviceName)
-			}
-
-			select {
-			case <-deviceHan.stop:
-				return
-			case <-time.After(5 * time.Second):
-				// try to start device plugin again when getting error
-				continue
-			}
-		}
-	}()
-
-	deviceHan.started = true
-}
-
-func (h *DevClaimHandler) stopDevicePlugin(deviceHan *deviceController) {
-	if !deviceHan.started {
-		return
-	}
-
-	close(deviceHan.stop)
-	deviceHan.started = false
-}
-
-func (h *DevClaimHandler) findDevicePlugin(pluginDevices map[string][]*deviceplugins.PluginDevices, usbDevice *v1beta1.USBDevice) *deviceplugins.PluginDevices {
-	var pluginDevice *deviceplugins.PluginDevices
-
-	for resourceName, devices := range pluginDevices {
-		for _, device := range devices {
-			device := device
-			for _, d := range device.Devices {
-				logrus.Debugf("resourceName: %s, device: %v", resourceName, d)
-				if usbDevice.Status.DevicePath == d.DevicePath {
-					pluginDevice = device
-					return pluginDevice
-				}
-			}
-		}
-	}
-
-	return pluginDevice
 }
 
 func (h *DevClaimHandler) OnRemove(_ string, claim *v1beta1.USBDeviceClaim) (*v1beta1.USBDeviceClaim, error) {
@@ -215,7 +142,7 @@ func (h *DevClaimHandler) OnRemove(_ string, claim *v1beta1.USBDeviceClaim) (*v1
 	// split target one if usb.ResourceName == usbDevice.Name
 
 	for i, usb := range usbs {
-		if usb.ResourceName == usbDevice.Status.ResourceName {
+		if usb.ResourceName == usbDevice.Spec.ResourceName {
 			usbs = append(usbs[:i], usbs[i+1:]...)
 			break
 		}
@@ -229,9 +156,11 @@ func (h *DevClaimHandler) OnRemove(_ string, claim *v1beta1.USBDeviceClaim) (*v1
 		}
 	}
 
-	if handler, ok := h.devicePlugin[claim.Name]; ok {
-		h.stopDevicePlugin(handler)
-		delete(h.devicePlugin, claim.Name)
+	if plugin, ok := h.managedDevicePlugins[claim.Name]; ok {
+		if err := plugin.StopDevicePlugin(); err != nil {
+			return claim, fmt.Errorf("error stopping device plugin %s: %v", plugin.GetResourceName(), err)
+		}
+		delete(h.managedDevicePlugins, claim.Name)
 	}
 
 	usbDeviceCp := usbDevice.DeepCopy()
@@ -255,25 +184,39 @@ func (h *DevClaimHandler) updateKubeVirt(virt *kubevirtv1.KubeVirt, usbDevice *v
 
 	usbs := virtDp.Spec.Configuration.PermittedHostDevices.USB
 
-	// check if the usb device is already added
-	for _, usb := range usbs {
-		// skip same resource name
-		if usb.ResourceName == usbDevice.Status.ResourceName {
-			return virt, nil
-		}
-	}
-
-	virtDp.Spec.Configuration.PermittedHostDevices.USB = append(usbs, kubevirtv1.USBHostDevice{
+	expectedUSBDeviceEntry := kubevirtv1.USBHostDevice{
+		ResourceName: usbDevice.Spec.ResourceName,
 		Selectors: []kubevirtv1.USBSelector{
 			{
 				Vendor:  usbDevice.Status.VendorID,
 				Product: usbDevice.Status.ProductID,
 			},
 		},
-		ResourceName:             usbDevice.Status.ResourceName,
 		ExternalResourceProvider: true,
-	})
+	}
 
+	var found bool
+	var index int
+	// check if the usb device is already added
+	for i, usb := range usbs {
+		// if resource name matches
+		if usb.ResourceName == usbDevice.Spec.ResourceName {
+			found = true
+			index = i
+		}
+	}
+
+	// if a resource name is found but vendor/product id may have changed due to device attachment changing
+	// then update the usb entry in place
+	if found {
+		if !reflect.DeepEqual(usbs[index], expectedUSBDeviceEntry) {
+			usbs[index] = expectedUSBDeviceEntry
+		}
+	} else {
+		usbs = append(usbs, expectedUSBDeviceEntry)
+	}
+
+	virtDp.Spec.Configuration.PermittedHostDevices.USB = usbs
 	if virt.Spec.Configuration.PermittedHostDevices == nil || !reflect.DeepEqual(virt.Spec.Configuration.PermittedHostDevices.USB, virtDp.Spec.Configuration.PermittedHostDevices.USB) {
 		newVirt, err := h.virtClient.Update(virtDp)
 		if err != nil {

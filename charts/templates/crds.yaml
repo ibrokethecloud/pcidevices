@@ -404,26 +404,29 @@ spec:
     schema:
       openAPIV3Schema:
         properties:
-          status:
+          spec:
             properties:
-              description:
-                nullable: true
-                type: string
               devicePath:
                 nullable: true
                 type: string
-              enabled:
-                type: boolean
               nodeName:
                 nullable: true
                 type: string
               pciAddress:
                 nullable: true
                 type: string
-              productID:
+              resourceName:
                 nullable: true
                 type: string
-              resourceName:
+            type: object
+          status:
+            properties:
+              description:
+                nullable: true
+                type: string
+              enabled:
+                type: boolean
+              productID:
                 nullable: true
                 type: string
               vendorID:
@@ -894,26 +897,29 @@ spec:
   validation:
     openAPIV3Schema:
       properties:
-        status:
+        spec:
           properties:
-            description:
-              nullable: true
-              type: string
             devicePath:
               nullable: true
               type: string
-            enabled:
-              type: boolean
             nodeName:
               nullable: true
               type: string
             pciAddress:
               nullable: true
               type: string
-            productID:
+            resourceName:
               nullable: true
               type: string
-            resourceName:
+          type: object
+        status:
+          properties:
+            description:
+              nullable: true
+              type: string
+            enabled:
+              type: boolean
+            productID:
               nullable: true
               type: string
             vendorID:

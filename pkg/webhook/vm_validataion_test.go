@@ -18,12 +18,16 @@ var (
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "usbdevice2innode1",
 		},
-		Status: devicesv1beta1.USBDeviceStatus{
+		Spec: devicesv1beta1.USBDeviceSpec{
 			NodeName:     "node1",
 			ResourceName: "fake.com/device1",
-			VendorID:     "8086",
-			ProductID:    "1166",
 			DevicePath:   "/dev/bus/002/001",
+			PCIAddress:   "0000:00:01:0",
+		},
+		Status: devicesv1beta1.USBDeviceStatus{
+
+			VendorID:  "8086",
+			ProductID: "1166",
 		},
 	}
 
@@ -57,7 +61,7 @@ var (
 							HostDevices: []kubevirtv1.HostDevice{
 								{
 									Name:       usbdevice2innode1.Name,
-									DeviceName: usbdevice2innode1.Status.ResourceName,
+									DeviceName: usbdevice2innode1.Spec.ResourceName,
 								},
 								{
 									Name:       pcideviceinnode1.Name,
@@ -88,7 +92,7 @@ func Test_CreateVM(t *testing.T) {
 		{
 			name: "mismatched node name - mismatched usb device",
 			before: func() {
-				usbdevice2innode1.Status.NodeName = "node2"
+				usbdevice2innode1.Spec.NodeName = "node2"
 				// change order to trigger usb device is mismatched
 				vmWithTwoInSameNodeDevices.Spec.Template.Spec.Domain.Devices.HostDevices = []kubevirtv1.HostDevice{
 					{
@@ -97,16 +101,16 @@ func Test_CreateVM(t *testing.T) {
 					},
 					{
 						Name:       usbdevice2innode1.Name,
-						DeviceName: usbdevice2innode1.Status.ResourceName,
+						DeviceName: usbdevice2innode1.Spec.ResourceName,
 					},
 				}
 			},
 			after: func() {
-				usbdevice2innode1.Status.NodeName = "node1"
+				usbdevice2innode1.Spec.NodeName = "node1"
 				vmWithTwoInSameNodeDevices.Spec.Template.Spec.Domain.Devices.HostDevices = []kubevirtv1.HostDevice{
 					{
 						Name:       usbdevice2innode1.Name,
-						DeviceName: usbdevice2innode1.Status.ResourceName,
+						DeviceName: usbdevice2innode1.Spec.ResourceName,
 					},
 					{
 						Name:       pcideviceinnode1.Name,
@@ -159,7 +163,7 @@ func Test_UpdateVM(t *testing.T) {
 		{
 			name: "mismatched node name - mismatched usb device",
 			before: func() {
-				usbdevice2innode1.Status.NodeName = "node2"
+				usbdevice2innode1.Spec.NodeName = "node2"
 				// change order to trigger usb device is mismatched
 				vmWithTwoInSameNodeDevices.Spec.Template.Spec.Domain.Devices.HostDevices = []kubevirtv1.HostDevice{
 					{
@@ -168,16 +172,16 @@ func Test_UpdateVM(t *testing.T) {
 					},
 					{
 						Name:       usbdevice2innode1.Name,
-						DeviceName: usbdevice2innode1.Status.ResourceName,
+						DeviceName: usbdevice2innode1.Spec.ResourceName,
 					},
 				}
 			},
 			after: func() {
-				usbdevice2innode1.Status.NodeName = "node1"
+				usbdevice2innode1.Spec.NodeName = "node1"
 				vmWithTwoInSameNodeDevices.Spec.Template.Spec.Domain.Devices.HostDevices = []kubevirtv1.HostDevice{
 					{
 						Name:       usbdevice2innode1.Name,
-						DeviceName: usbdevice2innode1.Status.ResourceName,
+						DeviceName: usbdevice2innode1.Spec.ResourceName,
 					},
 					{
 						Name:       pcideviceinnode1.Name,

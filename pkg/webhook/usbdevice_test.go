@@ -14,12 +14,16 @@ var (
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "usbdevice3",
 		},
-		Status: devicesv1beta1.USBDeviceStatus{
+		Spec: devicesv1beta1.USBDeviceSpec{
 			NodeName:     "node1",
 			ResourceName: "fake.com/device1",
-			VendorID:     "8086",
-			ProductID:    "1166",
 			DevicePath:   "/dev/bus/002/001",
+			PCIAddress:   "0000:00:01.0",
+		},
+		Status: devicesv1beta1.USBDeviceStatus{
+
+			VendorID:  "8086",
+			ProductID: "1166",
 		},
 	}
 )

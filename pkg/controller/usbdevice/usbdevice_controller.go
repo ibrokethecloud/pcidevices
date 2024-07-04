@@ -68,8 +68,8 @@ func (h *DevHandler) OnDeviceChange(_ string, _ string, obj runtime.Object) ([]r
 		return nil, nil
 	}
 
-	if ud.Status.NodeName == cl.nodeName {
-		udcList, err := h.usbClaimCache.GetByIndex(v1beta1.USBDevicePCIAddress, ud.Status.PCIAddress)
+	if ud.Spec.NodeName == cl.nodeName {
+		udcList, err := h.usbClaimCache.GetByIndex(v1beta1.USBDevicePCIAddress, ud.Spec.PCIAddress)
 		if err != nil {
 			logrus.Errorf("error listing USBDeviceClaims during device watch: %v", err)
 			return nil, err
@@ -103,7 +103,7 @@ func (h *DevHandler) ReconcileUSBDevices() error {
 	mapStoredUSBDevices := make(map[string]*v1beta1.USBDevice)
 	for _, storedUSBDevice := range storedUSBDevices {
 		storedUSBDevice := storedUSBDevice
-		mapStoredUSBDevices[storedUSBDevice.Status.DevicePath] = storedUSBDevice
+		mapStoredUSBDevices[storedUSBDevice.Spec.DevicePath] = storedUSBDevice
 	}
 
 	createList, updateList := h.getList(localUSBDevices, mapStoredUSBDevices, nodeName)
@@ -177,28 +177,28 @@ func (h *DevHandler) getList(localUSBDevices map[int][]*deviceplugins.USBDevice,
 						Name:   name,
 						Labels: cl.labels(),
 					},
-					Status: v1beta1.USBDeviceStatus{
-						VendorID:     fmt.Sprintf("%04x", localUSBDevice.Vendor),
-						ProductID:    fmt.Sprintf("%04x", localUSBDevice.Product),
+					Spec: v1beta1.USBDeviceSpec{
 						ResourceName: resourceName(name),
 						NodeName:     nodeName,
 						DevicePath:   localUSBDevice.DevicePath,
-						Description:  usbid.DescribeWithVendorAndProduct(gousb.ID(localUSBDevice.Vendor), gousb.ID(localUSBDevice.Product)),
 						PCIAddress:   localUSBDevice.PCIAddress,
+					},
+					Status: v1beta1.USBDeviceStatus{
+						VendorID:    fmt.Sprintf("%04x", localUSBDevice.Vendor),
+						ProductID:   fmt.Sprintf("%04x", localUSBDevice.Product),
+						Description: usbid.DescribeWithVendorAndProduct(gousb.ID(localUSBDevice.Vendor), gousb.ID(localUSBDevice.Product)),
 					},
 				}
 				createList = append(createList, createdOne)
 			} else {
 				existedCp := existed.DeepCopy()
+				// on existing devices, the usb device path/pciaddress is not going to change
+				// only item changing will be the usb device details if a device is added/removed/changed
 				if isStatusChanged(existedCp, localUSBDevice) {
 					existedCp.Status = v1beta1.USBDeviceStatus{
-						VendorID:     fmt.Sprintf("%04x", localUSBDevice.Vendor),
-						ProductID:    fmt.Sprintf("%04x", localUSBDevice.Product),
-						ResourceName: resourceName(usbDeviceName(nodeName, localUSBDevice)),
-						NodeName:     nodeName,
-						DevicePath:   localUSBDevice.DevicePath,
-						Description:  usbid.DescribeWithVendorAndProduct(gousb.ID(localUSBDevice.Vendor), gousb.ID(localUSBDevice.Product)),
-						PCIAddress:   localUSBDevice.PCIAddress,
+						VendorID:    fmt.Sprintf("%04x", localUSBDevice.Vendor),
+						ProductID:   fmt.Sprintf("%04x", localUSBDevice.Product),
+						Description: usbid.DescribeWithVendorAndProduct(gousb.ID(localUSBDevice.Vendor), gousb.ID(localUSBDevice.Product)),
 					}
 					updateList = append(updateList, existedCp)
 				} else {
@@ -213,8 +213,8 @@ func (h *DevHandler) getList(localUSBDevices map[int][]*deviceplugins.USBDevice,
 
 func usbDeviceName(nodeName string, localUSBDevice *deviceplugins.USBDevice) string {
 	devicePath := strings.Replace(localUSBDevice.DevicePath, "/dev/bus/usb/", "", -1)
-	devicePath = strings.Join(strings.Split(devicePath, "/"), "")
-	name := fmt.Sprintf("%s-%04x-%04x-%s", nodeName, localUSBDevice.Vendor, localUSBDevice.Product, devicePath)
+	devicePath = strings.Join(strings.Split(devicePath, "/"), "-")
+	name := fmt.Sprintf("%s-%s", nodeName, devicePath)
 	return name
 }
 

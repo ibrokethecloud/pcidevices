@@ -32,9 +32,9 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/harvester/pcidevices/pkg/apis/devices.harvesterhci.io/v1beta1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"k8s.io/apimachinery/pkg/util/rand"
 	v1 "kubevirt.io/api/core/v1"
 	"kubevirt.io/client-go/log"
 	"kubevirt.io/kubevirt/pkg/safepath"
@@ -57,7 +57,7 @@ type USBDevicePlugin struct {
 	deregistered chan struct{}
 	server       *grpc.Server
 	resourceName string
-	devices      []*PluginDevices
+	devices      *PluginDevices
 	logger       *log.FilteredLogger
 
 	initialized bool
@@ -65,9 +65,9 @@ type USBDevicePlugin struct {
 }
 
 type PluginDevices struct {
-	ID        string
-	isHealthy bool
-	Devices   []*USBDevice
+	ID         string
+	isHealthy  bool
+	DevicePath string
 }
 
 type USBDevice struct {
@@ -91,14 +91,6 @@ func (dev *USBDevice) GetID() string {
 	return fmt.Sprintf("%04x:%04x-%02d:%02d", dev.Vendor, dev.Product, dev.Bus, dev.DeviceNumber)
 }
 
-func newPluginDevices(resourceName string, index int, usbdevs []*USBDevice) *PluginDevices {
-	return &PluginDevices{
-		ID:        fmt.Sprintf("%s-%s-%d", resourceName, rand.String(4), index),
-		isHealthy: true,
-		Devices:   usbdevs,
-	}
-}
-
 func (pd *PluginDevices) toKubeVirtDevicePlugin() *pluginapi.Device {
 	healthStr := pluginapi.Healthy
 	if !pd.isHealthy {
@@ -111,28 +103,12 @@ func (pd *PluginDevices) toKubeVirtDevicePlugin() *pluginapi.Device {
 	}
 }
 
-func (plugin *USBDevicePlugin) FindDevice(pluginDeviceID string) *PluginDevices {
-	for _, pd := range plugin.devices {
-		if pd.ID == pluginDeviceID {
-			return pd
-		}
-	}
-	return nil
+func (plugin *USBDevicePlugin) FindDevice() *PluginDevices {
+	return plugin.devices
 }
 
-func (plugin *USBDevicePlugin) FindDeviceByUSBID(usbID string) *PluginDevices {
-	for _, pd := range plugin.devices {
-		for _, usb := range pd.Devices {
-			if usb.GetID() == usbID {
-				return pd
-			}
-		}
-	}
-	return nil
-}
-
-func (plugin *USBDevicePlugin) setDeviceHealth(usbID string, isHealthy bool) {
-	pd := plugin.FindDeviceByUSBID(usbID)
+func (plugin *USBDevicePlugin) setDeviceHealth(isHealthy bool) {
+	pd := plugin.devices
 	isDifferent := pd.isHealthy != isHealthy
 	pd.isHealthy = isHealthy
 	if isDifferent {
@@ -141,10 +117,8 @@ func (plugin *USBDevicePlugin) setDeviceHealth(usbID string, isHealthy bool) {
 }
 
 func (plugin *USBDevicePlugin) devicesToKubeVirtDevicePlugin() []*pluginapi.Device {
-	devices := make([]*pluginapi.Device, 0, len(plugin.devices))
-	for _, pluginDevices := range plugin.devices {
-		devices = append(devices, pluginDevices.toKubeVirtDevicePlugin())
-	}
+	devices := []*pluginapi.Device{}
+	devices = append(devices, &pluginapi.Device{ID: plugin.devices.ID})
 	return devices
 }
 
@@ -160,7 +134,7 @@ func (plugin *USBDevicePlugin) setInitialized(initialized bool) {
 	plugin.lock.Unlock()
 }
 
-func (plugin *USBDevicePlugin) GetDeviceName() string {
+func (plugin *USBDevicePlugin) GetResourceName() string {
 	return plugin.resourceName
 }
 
@@ -261,14 +235,14 @@ func (plugin *USBDevicePlugin) healthCheck() error {
 			plugin.logger.Reason(err).Errorf("error watching devices and device plugin directory")
 		case event := <-watcher.Events:
 			plugin.logger.V(2).Infof("health Event: %v", event)
-			if id, exist := monitoredDevices[event.Name]; exist {
+			if _, exist := monitoredDevices[event.Name]; exist {
 				// Health in this case is if the device path actually exists
 				if event.Op == fsnotify.Create {
 					plugin.logger.Infof("monitored device %s appeared", plugin.resourceName)
-					plugin.setDeviceHealth(id, true)
+					plugin.setDeviceHealth(true)
 				} else if (event.Op == fsnotify.Remove) || (event.Op == fsnotify.Rename) {
 					plugin.logger.Infof("monitored device %s disappeared", plugin.resourceName)
-					plugin.setDeviceHealth(id, false)
+					plugin.setDeviceHealth(false)
 				}
 			} else if event.Name == plugin.socketPath && event.Op == fsnotify.Remove {
 				plugin.logger.Infof("device socket file for device %s was removed, kubelet probably restarted.", plugin.resourceName)
@@ -294,26 +268,21 @@ func (plugin *USBDevicePlugin) getMonitoredDevices(watcher *fsnotify.Watcher) (m
 	monitoredDevices := make(map[string]string)
 	watchedDirs := make(map[string]struct{})
 
-	for _, pd := range plugin.devices {
-		for _, usb := range pd.Devices {
-			usbDevicePath := filepath.Join(util.HostRootMount, usb.DevicePath)
-			usbDeviceDirPath := filepath.Dir(usbDevicePath)
-			if _, exists := watchedDirs[usbDeviceDirPath]; !exists {
-				if err := watcher.Add(usbDeviceDirPath); err != nil {
-					return nil, fmt.Errorf("failed to watch device %s parent directory: %s", usbDevicePath, err)
-				}
-				watchedDirs[usbDeviceDirPath] = struct{}{}
-			}
-
-			if err := watcher.Add(usbDevicePath); err != nil {
-				return nil, fmt.Errorf("failed to add the device %s to the watcher: %s", usbDevicePath, err)
-			} else if _, err := os.Stat(usbDevicePath); err != nil {
-				return nil, fmt.Errorf("failed to validate device %s: %s", usbDevicePath, err)
-			}
-			monitoredDevices[usbDevicePath] = usb.GetID()
+	usbDevicePath := filepath.Join(util.HostRootMount, plugin.devices.DevicePath)
+	usbDeviceDirPath := filepath.Dir(usbDevicePath)
+	if _, exists := watchedDirs[usbDeviceDirPath]; !exists {
+		if err := watcher.Add(usbDeviceDirPath); err != nil {
+			return nil, fmt.Errorf("failed to watch device %s parent directory: %s", usbDevicePath, err)
 		}
+		watchedDirs[usbDeviceDirPath] = struct{}{}
 	}
 
+	if err := watcher.Add(usbDevicePath); err != nil {
+		return nil, fmt.Errorf("failed to add the device %s to the watcher: %s", usbDevicePath, err)
+	} else if _, err := os.Stat(usbDevicePath); err != nil {
+		return nil, fmt.Errorf("failed to validate device %s: %s", usbDevicePath, err)
+	}
+	monitoredDevices[usbDevicePath] = plugin.devices.ID
 	return monitoredDevices, nil
 }
 
@@ -343,7 +312,7 @@ func (plugin *USBDevicePlugin) register() error {
 	reqt := &pluginapi.RegisterRequest{
 		Version:      pluginapi.Version,
 		Endpoint:     path.Base(plugin.socketPath),
-		ResourceName: plugin.GetDeviceName(),
+		ResourceName: plugin.GetResourceName(),
 	}
 
 	_, err = client.Register(context.Background(), reqt)
@@ -405,39 +374,33 @@ func (plugin *USBDevicePlugin) Allocate(_ context.Context, allocRequest *plugina
 		for _, id := range request.DevicesIDs {
 			plugin.logger.V(2).Infof("usb device id: %s", id)
 
-			pluginDevices := plugin.FindDevice(id)
-			if pluginDevices == nil {
+			pluginDevice := plugin.FindDevice()
+			if pluginDevice == nil {
 				plugin.logger.V(2).Infof("usb disappeared: %s", id)
 				continue
 			}
 
 			deviceSpecs := []*pluginapi.DeviceSpec{}
-			for _, dev := range pluginDevices.Devices {
-				spath, err := safepath.JoinAndResolveWithRelativeRoot(util.HostRootMount, dev.DevicePath)
-				if err != nil {
-					return nil, fmt.Errorf("error opening the socket %s: %v", dev.DevicePath, err)
-				}
-
-				err = safepath.ChownAtNoFollow(spath, util.NonRootUID, util.NonRootUID)
-				if err != nil {
-					return nil, fmt.Errorf("error setting the permission the socket %s: %v", dev.DevicePath, err)
-				}
-
-				// We might have more than one USB device per resource name
-				key := util.ResourceNameToEnvVar(v1.USBResourcePrefix, plugin.resourceName)
-				value := fmt.Sprintf("%d:%d", dev.Bus, dev.DeviceNumber)
-				if previous, exist := env[key]; exist {
-					env[key] = fmt.Sprintf("%s,%s", previous, value)
-				} else {
-					env[key] = value
-				}
-
-				deviceSpecs = append(deviceSpecs, &pluginapi.DeviceSpec{
-					ContainerPath: dev.DevicePath,
-					HostPath:      dev.DevicePath,
-					Permissions:   "mrw",
-				})
+			spath, err := safepath.JoinAndResolveWithRelativeRoot(util.HostRootMount, pluginDevice.DevicePath)
+			if err != nil {
+				return nil, fmt.Errorf("error opening the socket %s: %v", pluginDevice.DevicePath, err)
 			}
+
+			err = safepath.ChownAtNoFollow(spath, util.NonRootUID, util.NonRootUID)
+			if err != nil {
+				return nil, fmt.Errorf("error setting the permission the socket %s: %v", pluginDevice.DevicePath, err)
+			}
+
+			// We might have more than one USB device per resource name
+			key := util.ResourceNameToEnvVar(v1.USBResourcePrefix, plugin.resourceName)
+			env[key] = pluginDevice.DevicePath
+
+			deviceSpecs = append(deviceSpecs, &pluginapi.DeviceSpec{
+				ContainerPath: pluginDevice.DevicePath,
+				HostPath:      pluginDevice.DevicePath,
+				Permissions:   "mrw",
+			})
+
 			containerResponse.Envs = env
 			containerResponse.Devices = append(containerResponse.Devices, deviceSpecs...)
 		}
@@ -451,8 +414,8 @@ func (plugin *USBDevicePlugin) PreStartContainer(context.Context, *pluginapi.Pre
 	return &pluginapi.PreStartContainerResponse{}, nil
 }
 
-func NewUSBDevicePlugin(resourceName string, pluginDevices []*PluginDevices) USBDevicePluginInterface {
-	s := strings.Split(resourceName, "/")
+func NewUSBDevicePlugin(usb v1beta1.USBDevice) *USBDevicePlugin {
+	s := strings.Split(usb.Spec.ResourceName, "/")
 	resourceID := s[0]
 	if len(s) > 1 {
 		resourceID = s[1]
@@ -460,10 +423,39 @@ func NewUSBDevicePlugin(resourceName string, pluginDevices []*PluginDevices) USB
 	resourceID = fmt.Sprintf("usb-%s", resourceID)
 	return &USBDevicePlugin{
 		socketPath:   SocketPath(resourceID),
-		resourceName: resourceName,
-		devices:      pluginDevices,
-		logger:       log.Log.With("subcomponent", resourceID),
-		initialized:  false,
-		lock:         &sync.Mutex{},
+		resourceName: usb.Spec.ResourceName,
+		devices: &PluginDevices{
+			ID: usb.Spec.DevicePath,
+		},
+		logger:      log.Log.With("subcomponent", resourceID),
+		initialized: false,
+		lock:        &sync.Mutex{},
 	}
+}
+
+func (plugin *USBDevicePlugin) StartDevicePlugin() {
+	if plugin.initialized {
+		return
+	}
+
+	stop := make(chan struct{})
+
+	go func() {
+		for {
+			// This will be blocked by a channel read inside function
+			if err := plugin.Start(stop); err != nil {
+				logrus.Errorf("Error starting %s device plugin", plugin.resourceName)
+			}
+
+			select {
+			case <-stop:
+				return
+			case <-time.After(5 * time.Second):
+				// try to start device plugin again when getting error
+				continue
+			}
+		}
+	}()
+
+	plugin.initialized = true
 }

@@ -3,11 +3,12 @@ package webhook
 import (
 	"fmt"
 
-	"github.com/harvester/harvester/pkg/webhook/types"
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	kubevirtv1 "kubevirt.io/api/core/v1"
+
+	"github.com/harvester/harvester/pkg/webhook/types"
 
 	"github.com/harvester/pcidevices/pkg/generated/controllers/devices.harvesterhci.io/v1beta1"
 )
@@ -81,7 +82,7 @@ func (vmValidator *vmDeviceHostValidator) validateDevicesFromSameNodes(vmObj *ku
 		}
 
 		if nodeName == "" && usb != nil {
-			nodeName = usb.Status.NodeName
+			nodeName = usb.Spec.NodeName
 			continue
 		}
 
@@ -101,7 +102,7 @@ func (vmValidator *vmDeviceHostValidator) validateDevicesFromSameNodes(vmObj *ku
 			return fmt.Errorf(errorMsgFormat, "pcidevice", pci.Name, vmObj.Name)
 		}
 
-		if usb != nil && usb.Status.NodeName != nodeName {
+		if usb != nil && usb.Spec.NodeName != nodeName {
 			return fmt.Errorf(errorMsgFormat, "usbdevice", usb.Name, vmObj.Name)
 		}
 	}

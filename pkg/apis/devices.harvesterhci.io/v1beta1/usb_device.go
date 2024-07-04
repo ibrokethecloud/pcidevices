@@ -10,17 +10,20 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type USBDevice struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Status USBDeviceStatus `json:"status,omitempty"`
+	Spec              USBDeviceSpec   `json:"usbDeviceSpec`
+	Status            USBDeviceStatus `json:"status,omitempty"`
 }
 
 type USBDeviceStatus struct {
-	VendorID     string `json:"vendorID"`
-	ProductID    string `json:"productID"`
-	NodeName     string `json:"nodeName"`
+	VendorID    string `json:"vendorID"`
+	ProductID   string `json:"productID"`
+	Description string `json:"description"`
+	Enabled     bool   `json:"enabled"`
+}
+
+type USBDeviceSpec struct {
 	ResourceName string `json:"resourceName"`
+	NodeName     string `json:"nodeName"`
 	DevicePath   string `json:"devicePath"`
-	Description  string `json:"description"`
 	PCIAddress   string `json:"pciAddress"`
-	Enabled      bool   `json:"enabled"`
 }
