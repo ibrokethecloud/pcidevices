@@ -2,7 +2,6 @@ package usbdevice
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/rancher/wrangler/pkg/relatedresource"
 	"github.com/sirupsen/logrus"
@@ -177,6 +176,7 @@ func (h *DevHandler) getList(localUSBDevices map[int][]*deviceplugins.USBDevice,
 						NodeName:     nodeName,
 						DevicePath:   localUSBDevice.DevicePath,
 						PCIAddress:   localUSBDevice.PCIAddress,
+						SysBusPath:   localUSBDevice.SysBusPath,
 					},
 					Status: v1beta1.USBDeviceStatus{
 						VendorID:    fmt.Sprintf("%04x", localUSBDevice.Vendor),
@@ -207,10 +207,7 @@ func (h *DevHandler) getList(localUSBDevices map[int][]*deviceplugins.USBDevice,
 }
 
 func usbDeviceName(nodeName string, localUSBDevice *deviceplugins.USBDevice) string {
-	devicePath := strings.Replace(localUSBDevice.DevicePath, "/dev/bus/usb/", "", -1)
-	devicePath = strings.Join(strings.Split(devicePath, "/"), "-")
-	name := fmt.Sprintf("%s-%s", nodeName, devicePath)
-	return name
+	return fmt.Sprintf("%s-%s", nodeName, localUSBDevice.Port)
 }
 
 func isStatusChanged(existed *v1beta1.USBDevice, localUSBDevice *deviceplugins.USBDevice) bool {

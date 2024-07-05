@@ -71,6 +71,7 @@ type PluginDevices struct {
 	DevicePath   string
 	Bus          string
 	DeviceNumber string
+	SysBusPath   string
 }
 
 type USBDevice struct {
@@ -84,6 +85,8 @@ type USBDevice struct {
 	Serial       string
 	DevicePath   string
 	PCIAddress   string
+	SysBusPath   string //path of device on /sys/bus/usb/devices as this seems to stay consistent for all devices
+	Port         string //port name
 }
 
 type USBDevicePluginInterface interface {
@@ -395,7 +398,7 @@ func (plugin *USBDevicePlugin) Allocate(_ context.Context, allocRequest *plugina
 			}
 
 			key := util.ResourceNameToEnvVar(v1.USBResourcePrefix, plugin.resourceName)
-			value := fmt.Sprintf("%d:%d", pluginDevice.Bus, pluginDevice.DeviceNumber)
+			value := fmt.Sprintf("%s:%s", pluginDevice.Bus, pluginDevice.DeviceNumber)
 
 			deviceSpecs = append(deviceSpecs, &pluginapi.DeviceSpec{
 				ContainerPath: pluginDevice.DevicePath,

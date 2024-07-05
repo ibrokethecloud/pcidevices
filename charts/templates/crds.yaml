@@ -418,6 +418,9 @@ spec:
               resourceName:
                 nullable: true
                 type: string
+              sysBusPath:
+                nullable: true
+                type: string
             type: object
           status:
             properties:
@@ -909,6 +912,9 @@ spec:
               nullable: true
               type: string
             resourceName:
+              nullable: true
+              type: string
+            sysBusPath:
               nullable: true
               type: string
           type: object

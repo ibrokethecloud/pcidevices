@@ -3,6 +3,8 @@ package deviceplugins
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,5 +34,16 @@ func Test_parseUSBSymLinkToPCIAddress(t *testing.T) {
 	for _, testcase := range testcases {
 		address := parseUSBSymLinkToPCIAddress(testcase.symLink)
 		assert.Equal(t, testcase.expected, address)
+	}
+}
+
+func Test_WalkUSBDevices(t *testing.T) {
+	assert := require.New(t)
+	devs, err := WalkUSBDevices()
+	assert.NoError(err)
+	for _, devices := range devs {
+		for _, usb := range devices {
+			t.Log(*usb)
+		}
 	}
 }

@@ -26,4 +26,5 @@ type USBDeviceSpec struct {
 	NodeName     string `json:"nodeName"`
 	DevicePath   string `json:"devicePath"`
 	PCIAddress   string `json:"pciAddress"`
+	SysBusPath   string `json:"sysBusPath"`
 }

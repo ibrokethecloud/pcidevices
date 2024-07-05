@@ -25,8 +25,17 @@ func parseSysUeventFile(path string) *USBDevice {
 	}
 	defer file.Close()
 
+	port, err := os.Readlink(filepath.Join(path, "port"))
+	if err != nil {
+		return nil
+	}
+
+	portStrs := strings.Split(port, "/")
+
 	u := USBDevice{
 		PCIAddress: parseUSBSymLinkToPCIAddress(link),
+		SysBusPath: path,
+		Port:       portStrs[len(portStrs)-1],
 	}
 
 	scanner := bufio.NewScanner(file)
