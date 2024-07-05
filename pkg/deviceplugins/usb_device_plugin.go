@@ -66,9 +66,11 @@ type USBDevicePlugin struct {
 }
 
 type PluginDevices struct {
-	ID         string
-	isHealthy  bool
-	DevicePath string
+	ID           string
+	isHealthy    bool
+	DevicePath   string
+	Bus          string
+	DeviceNumber string
 }
 
 type USBDevice struct {
@@ -119,7 +121,7 @@ func (plugin *USBDevicePlugin) setDeviceHealth(isHealthy bool) {
 
 func (plugin *USBDevicePlugin) devicesToKubeVirtDevicePlugin() []*pluginapi.Device {
 	devices := []*pluginapi.Device{}
-	devices = append(devices, &pluginapi.Device{ID: plugin.devices.ID})
+	devices = append(devices, plugin.devices.toKubeVirtDevicePlugin())
 	return devices
 }
 
@@ -392,9 +394,8 @@ func (plugin *USBDevicePlugin) Allocate(_ context.Context, allocRequest *plugina
 				return nil, fmt.Errorf("error setting the permission the socket %s: %v", pluginDevice.DevicePath, err)
 			}
 
-			// We might have more than one USB device per resource name
 			key := util.ResourceNameToEnvVar(v1.USBResourcePrefix, plugin.resourceName)
-			env[key] = pluginDevice.DevicePath
+			value := fmt.Sprintf("%d:%d", pluginDevice.Bus, pluginDevice.DeviceNumber)
 
 			deviceSpecs = append(deviceSpecs, &pluginapi.DeviceSpec{
 				ContainerPath: pluginDevice.DevicePath,
@@ -402,12 +403,20 @@ func (plugin *USBDevicePlugin) Allocate(_ context.Context, allocRequest *plugina
 				Permissions:   "mrw",
 			})
 
+			if previous, exist := env[key]; exist {
+				env[key] = fmt.Sprintf("%s,%s", previous, value)
+			} else {
+				env[key] = value
+			}
 			containerResponse.Envs = env
 			containerResponse.Devices = append(containerResponse.Devices, deviceSpecs...)
 		}
 		allocResponse.ContainerResponses = append(allocResponse.ContainerResponses, containerResponse)
 	}
 
+	for _, v := range allocResponse.ContainerResponses {
+		logrus.Infof("%v\n", *v)
+	}
 	return allocResponse, nil
 }
 
@@ -421,12 +430,17 @@ func NewUSBDevicePlugin(usb v1beta1.USBDevice) *USBDevicePlugin {
 	if len(s) > 1 {
 		resourceID = s[1]
 	}
+	bus, deviceNumber := generateBusAndDevice(usb.Spec.DevicePath)
 	resourceID = fmt.Sprintf("usb-%s", resourceID)
 	return &USBDevicePlugin{
 		socketPath:   SocketPath(resourceID),
 		resourceName: usb.Spec.ResourceName,
 		devices: &PluginDevices{
-			ID: usb.Spec.DevicePath,
+			ID:           usb.Spec.DevicePath,
+			isHealthy:    true,
+			Bus:          bus,
+			DeviceNumber: deviceNumber,
+			DevicePath:   usb.Spec.DevicePath,
 		},
 		logger:      log.Log.With("subcomponent", resourceID),
 		initialized: false,
@@ -459,4 +473,9 @@ func (plugin *USBDevicePlugin) StartDevicePlugin() {
 	}()
 
 	plugin.initialized = true
+}
+
+func generateBusAndDevice(devicePath string) (string, string) {
+	result := strings.Split(devicePath, "/")
+	return result[len(result)-2], result[len(result)-1]
 }
