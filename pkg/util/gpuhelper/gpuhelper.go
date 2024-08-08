@@ -296,7 +296,7 @@ func evalPhysFn(devicePath string) (string, error) {
 
 func GenerateDeviceName(deviceName string) string {
 	deviceName = strings.TrimSpace(deviceName)
-	deviceName = strings.ToUpper(deviceName)
+	//deviceName = strings.ToUpper(deviceName)
 	deviceName = strings.Replace(deviceName, "/", "_", -1)
 	deviceName = strings.Replace(deviceName, ".", "_", -1)
 	//deviceName = strings.Replace(deviceName, "-", "_", -1)
