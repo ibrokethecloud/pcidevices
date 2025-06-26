@@ -574,7 +574,7 @@ func (h *Handler) OnDeviceChange(_ string, _ string, obj runtime.Object) ([]rela
 	return nil, nil
 }
 
-func (h *Handler) bindDeviceToOriginalDriver(pd *v1beta1.PCIDevice) error {
+func (h *Handler) bindDeviceToOriginalDriver(pd *v1beta1.PCIDevice, individualMode bool) error {
 	address := pd.Status.Address
 	orgDriver, ok := pd.Annotations[v1beta1.PciDeviceDriver]
 
@@ -605,6 +605,11 @@ func (h *Handler) bindDeviceToOriginalDriver(pd *v1beta1.PCIDevice) error {
 
 	// update to reflect the original driver
 	pdCopy.Status.KernelDriverInUse = orgDriver
+
+	// device was bound in individiual mode, which means we need to rollback the resourceName back to generate name
+	if individualMode {
+
+	}
 	_, err = h.pdClient.UpdateStatus(pdCopy)
 	return err
 }
@@ -612,4 +617,11 @@ func (h *Handler) bindDeviceToOriginalDriver(pd *v1beta1.PCIDevice) error {
 func deviceBoundToDriver(driverPath string, pciAddress string) bool {
 	_, err := os.Stat(fmt.Sprintf("%s/%s", driverPath, pciAddress))
 	return err == nil
+}
+
+// generateIndividualDeviceResourceName will generate a device specific name for
+// use in the device plugin which will ensure that workload can be pinned to specific device
+// by the device plugin
+func generateIndividualDeviceResourceName(pd *v1beta1.PCIDevice) string {
+	return strings.ReplaceAll(pd.Name, "-", "_")
 }

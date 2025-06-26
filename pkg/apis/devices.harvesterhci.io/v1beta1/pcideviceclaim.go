@@ -21,9 +21,10 @@ type PCIDeviceClaim struct {
 }
 
 type PCIDeviceClaimSpec struct {
-	Address  string `json:"address"`
-	NodeName string `json:"nodeName"`
-	UserName string `json:"userName"`
+	Address        string `json:"address"`
+	NodeName       string `json:"nodeName"`
+	UserName       string `json:"userName"`
+	IndividualMode bool   `json:"individualMode,omitempty"`
 }
 
 func (s PCIDeviceClaimSpec) NodeAddr() string {
